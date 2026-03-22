@@ -206,5 +206,13 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Project-specific
-data/
+# Project-specific — ignore data subdirs except models and processed parquet for deployment
+data/*
+!data/models/
+data/models/*
+!data/models/linear/
+!data/models/bayesian/
+!data/models/gbm/
+!data/processed/
+data/processed/*
+!data/processed/laps_clean.parquet

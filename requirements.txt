@@ -1,0 +1,13 @@
+# Streamlit Community Cloud deployment dependencies
+# Only includes what the dashboard needs at runtime — no data ingestion deps
+streamlit>=1.32
+plotly>=5.18
+pandas>=2.0
+numpy>=1.24
+pyarrow>=14.0
+pyyaml>=6.0
+scikit-learn>=1.3
+pandera>=0.18
+xgboost>=2.0
+numpyro>=0.14
+jax[cpu]>=0.4
