@@ -19,11 +19,12 @@ available = available_model_names()
 # Tabs — one per model tier
 # ---------------------------------------------------------------------------
 
-tab_linear, tab_bayesian, tab_gbm = st.tabs(
+tab_linear, tab_bayesian, tab_gbm, tab_anomaly = st.tabs(
     [
         f"{'✅' if 'linear' in available else '⬜'} {MODEL_LABELS['linear']}",
         f"{'✅' if 'bayesian' in available else '⬜'} {MODEL_LABELS['bayesian']}",
         f"{'✅' if 'gbm' in available else '⬜'} {MODEL_LABELS['gbm']}",
+        "Anomaly Prediction",
     ]
 )
 
@@ -270,7 +271,7 @@ is sparse or noisy).
 | Max depth | 6 |
 | Learning rate | 0.05 |
 | Quantiles | 0.025, 0.5, 0.975 |
-| Typical MAE | ~0.77s |
+| Typical MAE | ~0.84s |
 | Dependencies | xgboost or lightgbm |
 """
         )
@@ -280,6 +281,12 @@ is sparse or noisy).
             "Numeric:  tyre_life, tyre_life_sq, fuel_mass_kg,\n"
             "          track_temp, air_temp, humidity,\n"
             "          wind_speed, rainfall\n"
+            "Traffic:  position, position_change,\n"
+            "          gap_ahead_seconds, gap_behind_seconds,\n"
+            "          traffic_density\n"
+            "Stint:    race_progress, stint_fraction\n"
+            "Interact: compound_x_track_temp,\n"
+            "          tyre_life_x_track_temp\n"
             "Categorical: compound, circuit_id,\n"
             "             driver_id, constructor_id",
             language=None,
@@ -323,7 +330,7 @@ st.markdown(
     """
 | | Linear (Ridge) | Bayesian Hierarchical | Gradient Boosted Trees |
 | --- | --- | --- | --- |
-| **Typical MAE** | ~1.54s | ~1.33s | ~0.77s |
+| **Typical MAE** | ~1.54s | ~1.33s | ~0.84s |
 | **Training time** | Seconds | Minutes (MCMC) | Seconds |
 | **Prediction speed** | Fast | Moderate | Fast |
 | **Interpretability** | High | High | Low |
