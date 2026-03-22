@@ -10,7 +10,14 @@ from f1deg.dashboard.charts import (
     plot_strategy_comparison,
 )
 from f1deg.dashboard.components import COMPOUNDS, model_selector
-from f1deg.dashboard.state import get_circuits, get_config, get_pit_loss, load_model
+from f1deg.dashboard.state import (
+    CIRCUIT_TO_GP,
+    get_circuits,
+    get_config,
+    get_pit_loss,
+    get_race_defaults,
+    load_model,
+)
 
 st.set_page_config(page_title="Strategy Simulator", layout="wide")
 st.title("Strategy Simulator")
@@ -31,6 +38,36 @@ circuit = st.sidebar.selectbox(
     key="strat_circuit",
     index=circuits.index("silverstone") if "silverstone" in circuits else 0,
 )
+
+# Load 2025 race defaults when the circuit changes
+_prev_key = "strat_prev_circuit"
+if circuit != st.session_state.get(_prev_key):
+    defaults = get_race_defaults(circuit)
+    if defaults:
+        w = defaults["weather"]
+        st.session_state["strat_air"] = w["air_temp"]
+        st.session_state["strat_track"] = w["track_temp"]
+        st.session_state["strat_hum"] = w["humidity"]
+        st.session_state["strat_wind"] = w["wind_speed"]
+        st.session_state["strat_rain"] = w["rainfall"]
+
+        s = defaults["strategy"]
+        st.session_state["strat_total_laps"] = s["total_race_laps"]
+        st.session_state["strat_num_stints"] = s["num_stints"]
+        for i, stint in enumerate(s["stints"]):
+            st.session_state[f"strat_compound_{i}"] = stint["compound"]
+            if i < s["num_stints"] - 1:
+                st.session_state[f"strat_laps_{i}"] = stint["laps"]
+    st.session_state[_prev_key] = circuit
+    st.rerun()
+
+gp_name = CIRCUIT_TO_GP.get(circuit)
+race_defaults = get_race_defaults(circuit)
+if race_defaults:
+    strat_summary = " / ".join(
+        f"{s['compound']} ({s['laps']})" for s in race_defaults["strategy"]["stints"]
+    )
+    st.sidebar.caption(f"2025 {gp_name} winner: {race_defaults['winner_id']} ({strat_summary})")
 
 total_race_laps = st.sidebar.number_input(
     "Total Race Laps",

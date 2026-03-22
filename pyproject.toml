@@ -23,6 +23,7 @@ dependencies = [
     "numpyro>=0.14",
     "jax[cpu]>=0.4",
     "xgboost>=2.0",
+    "lightgbm>=4.6.0",
 ]
 
 [project.optional-dependencies]

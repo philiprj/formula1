@@ -56,8 +56,55 @@ def _load_session_with_retry(
                 raise
 
 
+def compute_gaps(laps: pd.DataFrame) -> pd.DataFrame:
+    """Compute time gaps between cars at each lap boundary.
+
+    Uses cumulative session Time to calculate the gap to the car ahead
+    and behind for each driver on each lap. No telemetry needed.
+
+    Returns DataFrame with columns: Driver, LapNumber, gap_ahead_seconds, gap_behind_seconds.
+    """
+    if "Time" not in laps.columns or "LapNumber" not in laps.columns:
+        logger.warning("Time or LapNumber column missing, skipping gap computation")
+        return pd.DataFrame(
+            columns=["Driver", "LapNumber", "gap_ahead_seconds", "gap_behind_seconds"]
+        )
+
+    records = []
+    for lap_num, lap_group in laps.groupby("LapNumber"):
+        # Filter to laps with valid Time
+        valid = lap_group.dropna(subset=["Time"]).copy()
+        if len(valid) < 2:
+            continue
+
+        # Convert Time to total seconds for comparison
+        if pd.api.types.is_timedelta64_dtype(valid["Time"]):
+            valid["_time_s"] = valid["Time"].dt.total_seconds()
+        else:
+            valid["_time_s"] = valid["Time"]
+
+        # Sort by session time (crossing order)
+        valid = valid.sort_values("_time_s")
+        times = valid["_time_s"].values
+        drivers = valid["Driver"].values
+
+        for i, (driver, _t) in enumerate(zip(drivers, times, strict=False)):
+            gap_ahead = times[i] - times[i - 1] if i > 0 else None
+            gap_behind = times[i + 1] - times[i] if i < len(times) - 1 else None
+            records.append(
+                {
+                    "Driver": driver,
+                    "LapNumber": lap_num,
+                    "gap_ahead_seconds": gap_ahead,
+                    "gap_behind_seconds": gap_behind,
+                }
+            )
+
+    return pd.DataFrame(records)
+
+
 def extract_laps(session: fastf1.core.Session) -> pd.DataFrame:
-    """Extract lap data from a session, merging weather information."""
+    """Extract lap data from a session, merging weather and gap information."""
     laps = session.laps.copy()
 
     if laps.empty:
@@ -72,6 +119,11 @@ def extract_laps(session: fastf1.core.Session) -> pd.DataFrame:
         # Avoid duplicate 'Time' column from weather
         weather_cols = [c for c in weather_per_lap.columns if c != "Time"]
         laps = laps.join(weather_per_lap[weather_cols])
+
+    # Compute inter-car gaps from lap crossing times
+    gaps = compute_gaps(laps)
+    if not gaps.empty:
+        laps = laps.merge(gaps, on=["Driver", "LapNumber"], how="left")
 
     # Add session metadata
     laps["Year"] = session.event.year

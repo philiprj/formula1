@@ -1,7 +1,12 @@
-"""Evaluation metrics for tire degradation models."""
+"""Evaluation metrics for tire degradation and anomaly prediction models."""
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import (
+    average_precision_score,
+    brier_score_loss,
+    roc_auc_score,
+)
 
 
 def mae(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -74,6 +79,64 @@ def compound_ranking_accuracy(
             correct += 1
 
     return correct / total if total > 0 else float("nan")
+
+
+def auroc(y_true: np.ndarray, y_proba: np.ndarray) -> float:
+    """Area Under ROC Curve for binary classification."""
+    if len(np.unique(y_true)) < 2:
+        return float("nan")
+    return float(roc_auc_score(y_true, y_proba))
+
+
+def auprc(y_true: np.ndarray, y_proba: np.ndarray) -> float:
+    """Area Under Precision-Recall Curve.
+
+    More informative than AUROC for imbalanced datasets.
+    """
+    if len(np.unique(y_true)) < 2:
+        return float("nan")
+    return float(average_precision_score(y_true, y_proba))
+
+
+def brier_score(y_true: np.ndarray, y_proba: np.ndarray) -> float:
+    """Brier score (lower is better). Measures calibration quality."""
+    return float(brier_score_loss(y_true, y_proba))
+
+
+def compute_classification_metrics(
+    y_true: np.ndarray,
+    y_proba: np.ndarray,
+    threshold: float = 0.5,
+) -> dict[str, float]:
+    """Compute all classification metrics for the anomaly model.
+
+    Args:
+        y_true: Binary ground truth (0/1).
+        y_proba: Predicted probabilities.
+        threshold: Decision threshold for precision/recall.
+
+    Returns:
+        Dict with metric names and values.
+    """
+    y_pred = (y_proba >= threshold).astype(int)
+    tp = int(((y_pred == 1) & (y_true == 1)).sum())
+    fp = int(((y_pred == 1) & (y_true == 0)).sum())
+    fn = int(((y_pred == 0) & (y_true == 1)).sum())
+
+    precision = tp / max(tp + fp, 1)
+    recall = tp / max(tp + fn, 1)
+    f1 = 2 * precision * recall / max(precision + recall, 1e-8)
+
+    return {
+        "auroc": auroc(y_true, y_proba),
+        "auprc": auprc(y_true, y_proba),
+        "brier_score": brier_score(y_true, y_proba),
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "positive_count": int(y_true.sum()),
+        "negative_count": int(len(y_true) - y_true.sum()),
+    }
 
 
 def compute_all_metrics(

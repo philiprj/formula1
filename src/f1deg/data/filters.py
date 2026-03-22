@@ -2,6 +2,8 @@
 
 Each filter is a pure function: (DataFrame) -> DataFrame.
 Filters compose via apply_filters().
+
+Flagging functions add boolean columns (is_outlier, etc.) without removing rows.
 """
 
 from collections.abc import Callable
@@ -117,6 +119,158 @@ def filter_outliers(
     return result
 
 
+def flag_outliers_compound_aware(
+    df: pd.DataFrame,
+    zscore_threshold: float = 2.5,
+    iqr_multiplier: float = 2.0,
+) -> pd.DataFrame:
+    """Flag outlier laps using compound-aware z-scores.
+
+    Groups by (race_id, compound) to account for natural pace differences
+    between tire compounds. Flags rather than removes — adds 'is_outlier'
+    and 'outlier_reason' columns.
+
+    Uses z-score as primary method. Falls back to IQR for small groups
+    (< 10 laps) where z-score is unreliable.
+    """
+    time_col = "lap_time_seconds" if "lap_time_seconds" in df.columns else "LapTime_seconds"
+    if time_col not in df.columns:
+        logger.warning(f"{time_col} column not found, skipping compound outlier flagging")
+        return df
+
+    result = df.copy()
+    if "is_outlier" not in result.columns:
+        result["is_outlier"] = False
+    if "outlier_reason" not in result.columns:
+        result["outlier_reason"] = pd.Series("", index=result.index, dtype="object")
+
+    group_cols = []
+    if "race_id" in result.columns:
+        group_cols.append("race_id")
+    if "compound" in result.columns:
+        group_cols.append("compound")
+
+    if not group_cols:
+        group_cols = ["race_id"] if "race_id" in result.columns else []
+
+    if not group_cols:
+        # Fall back to global z-score
+        mean = result[time_col].mean()
+        std = result[time_col].std()
+        if std > 0:
+            zscore = (result[time_col] - mean) / std
+            mask = zscore > zscore_threshold
+            result.loc[mask, "is_outlier"] = True
+            result.loc[mask, "outlier_reason"] = "compound_zscore"
+        return result
+
+    for _, group in result.groupby(group_cols):
+        times = group[time_col]
+        if len(times) < 3:
+            continue
+
+        if len(times) < 10:
+            # Small group: use IQR
+            q1, q3 = times.quantile(0.25), times.quantile(0.75)
+            iqr = q3 - q1
+            upper = q3 + iqr_multiplier * iqr
+            mask = times > upper
+        else:
+            # Large group: use z-score
+            mean = times.mean()
+            std = times.std()
+            if std == 0:
+                continue
+            zscore = (times - mean) / std
+            mask = zscore > zscore_threshold
+
+        flagged_idx = group.index[mask]
+        result.loc[flagged_idx, "is_outlier"] = True
+        result.loc[flagged_idx, "outlier_reason"] = "compound_zscore"
+
+    flagged = result["is_outlier"].sum()
+    logger.debug(f"flag_outliers_compound_aware: flagged {flagged}/{len(result)} laps")
+    return result
+
+
+def flag_yellow_adjacent(
+    df: pd.DataFrame,
+    adjacent_laps: int = 1,
+    sc_adjacent_laps: int = 2,
+) -> pd.DataFrame:
+    """Flag laps adjacent to yellow flag or safety car periods.
+
+    Drivers lift when they see yellows ahead, affecting lap times even
+    if their own TrackStatus is still green. Flags the laps before/after
+    yellow flag periods for each driver.
+
+    Args:
+        df: Lap DataFrame with TrackStatus, driver_id/Driver, and lap_number/LapNumber.
+        adjacent_laps: Number of laps to flag around yellow flags.
+        sc_adjacent_laps: Number of laps to flag before SC deployment.
+    """
+    if "TrackStatus" not in df.columns:
+        logger.warning("TrackStatus column not found, skipping yellow adjacency flagging")
+        return df
+
+    result = df.copy()
+    if "is_outlier" not in result.columns:
+        result["is_outlier"] = False
+    if "outlier_reason" not in result.columns:
+        result["outlier_reason"] = pd.Series("", index=result.index, dtype="object")
+
+    driver_col = "driver_id" if "driver_id" in result.columns else "Driver"
+    lap_col = "lap_number" if "lap_number" in result.columns else "LapNumber"
+    race_col = "race_id" if "race_id" in result.columns else None
+
+    if driver_col not in result.columns or lap_col not in result.columns:
+        logger.warning("Required columns missing for yellow adjacency flagging")
+        return result
+
+    group_cols = [driver_col]
+    if race_col and race_col in result.columns:
+        group_cols = [race_col, driver_col]
+
+    for _, group in result.groupby(group_cols):
+        sorted_group = group.sort_values(lap_col)
+        statuses = sorted_group["TrackStatus"].astype(str)
+
+        # Find yellow flag laps (code "2")
+        yellow_mask = statuses.apply(lambda s: "2" in str(s) if pd.notna(s) else False)
+        # Find SC deployment laps (code "4")
+        sc_mask = statuses.apply(lambda s: "4" in str(s) if pd.notna(s) else False)
+
+        yellow_laps = sorted_group.loc[yellow_mask, lap_col].values
+        sc_laps = sorted_group.loc[sc_mask, lap_col].values
+
+        affected_laps = set()
+
+        for yl in yellow_laps:
+            for offset in range(-adjacent_laps, adjacent_laps + 1):
+                affected_laps.add(yl + offset)
+
+        for sl in sc_laps:
+            for offset in range(-sc_adjacent_laps, 1):  # before SC only
+                affected_laps.add(sl + offset)
+
+        # Flag laps that are adjacent but NOT themselves yellow/SC
+        for idx, row in sorted_group.iterrows():
+            ln = row[lap_col]
+            status = str(row["TrackStatus"]) if pd.notna(row["TrackStatus"]) else ""
+            is_already_flagged = any(c in status for c in ["2", "4", "5", "6"])
+            if ln in affected_laps and not is_already_flagged:
+                result.loc[idx, "is_outlier"] = True
+                existing = result.loc[idx, "outlier_reason"]
+                reason = "yellow_adjacent"
+                if existing and existing != reason:
+                    reason = f"{existing},{reason}"
+                result.loc[idx, "outlier_reason"] = reason
+
+    flagged = result["outlier_reason"].str.contains("yellow_adjacent", na=False).sum()
+    logger.debug(f"flag_yellow_adjacent: flagged {flagged} additional laps")
+    return result
+
+
 # Registry of available filters
 FILTER_REGISTRY: dict[str, Callable[[pd.DataFrame], pd.DataFrame]] = {
     "accurate": filter_accurate,
@@ -124,6 +278,8 @@ FILTER_REGISTRY: dict[str, Callable[[pd.DataFrame], pd.DataFrame]] = {
     "pit_laps": filter_pit_laps,
     "first_lap": filter_first_lap,
     "outliers": filter_outliers,
+    "outliers_compound": flag_outliers_compound_aware,
+    "yellow_adjacent": flag_yellow_adjacent,
 }
 
 

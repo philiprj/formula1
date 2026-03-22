@@ -1,0 +1,58 @@
+# Anomaly / Retirement prediction model
+model_type: anomaly
+
+# Target column
+target: is_anomalous_lap
+
+# Numeric features
+features:
+  - tyre_life
+  - tyre_life_sq
+  - fuel_mass_kg
+  - track_temp
+  - air_temp
+  - humidity
+  - wind_speed
+  - rainfall
+  - position
+  - position_change
+  - traffic_density
+  - race_progress
+  - stint_fraction
+  - gap_ahead_seconds
+  - gap_behind_seconds
+  - compound_x_track_temp
+  - tyre_life_x_track_temp
+
+categorical_features:
+  - compound
+  - circuit_id
+  - driver_id
+  - constructor_id
+
+# Rolling features (computed at prediction time)
+rolling_features:
+  - lap_time_delta
+  - lap_time_trend
+  - position_volatility
+  - tyre_age_vs_typical
+
+rolling_window: 5
+
+# LightGBM hyperparameters
+lightgbm:
+  n_estimators: 500
+  max_depth: 6
+  learning_rate: 0.05
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_samples: 20
+  reg_alpha: 0.1
+  reg_lambda: 1.0
+  is_unbalance: true
+
+# Probability calibration method ("isotonic" or "sigmoid")
+calibration: isotonic
+
+# Prediction threshold
+threshold: 0.5

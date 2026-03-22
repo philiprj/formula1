@@ -5,10 +5,12 @@ from __future__ import annotations
 import streamlit as st
 
 from f1deg.dashboard.state import (
+    CIRCUIT_TO_GP,
     MODEL_LABELS,
     available_model_names,
     get_circuits,
     get_config,
+    get_race_defaults,
 )
 
 COMPOUNDS = ["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"]
@@ -60,6 +62,24 @@ def scenario_sidebar(*, key_prefix: str = "") -> dict:
         index=circuits.index("silverstone") if "silverstone" in circuits else 0,
         key=f"{key_prefix}circuit",
     )
+
+    # Load 2025 race defaults when the circuit changes
+    _prev_key = f"{key_prefix}_prev_circuit"
+    if circuit != st.session_state.get(_prev_key):
+        defaults = get_race_defaults(circuit)
+        if defaults:
+            w = defaults["weather"]
+            st.session_state[f"{key_prefix}air"] = w["air_temp"]
+            st.session_state[f"{key_prefix}track"] = w["track_temp"]
+            st.session_state[f"{key_prefix}hum"] = w["humidity"]
+            st.session_state[f"{key_prefix}wind"] = w["wind_speed"]
+            st.session_state[f"{key_prefix}rain"] = w["rainfall"]
+        st.session_state[_prev_key] = circuit
+        st.rerun()
+
+    gp_name = CIRCUIT_TO_GP.get(circuit)
+    if gp_name:
+        st.sidebar.caption(f"Conditions from 2025 {gp_name}")
 
     stint_length = st.sidebar.slider(
         "Stint Length (laps)",

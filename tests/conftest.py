@@ -18,6 +18,15 @@ def sample_raw_laps():
     drivers = ["VER", "HAM", "LEC", "NOR"]
     teams = ["Red Bull", "Mercedes", "Ferrari", "McLaren"]
 
+    # Create Time column (cumulative session time) for gap computation
+    base_times = []
+    for d in range(4):  # 4 drivers
+        for lap in range(25):  # 25 laps each
+            # Stagger drivers by ~1-3 seconds
+            base_times.append(
+                pd.Timedelta(seconds=90 * (lap + 2) + d * 1.5 + np.random.normal(0, 0.5))
+            )
+
     data = {
         "LapNumber": np.tile(np.arange(2, 27), 4),  # Laps 2-26 for 4 drivers
         "LapTime_seconds": np.random.normal(90, 2, n),
@@ -26,12 +35,15 @@ def sample_raw_laps():
         "Driver": np.repeat(drivers, 25),
         "Team": np.repeat(teams, 25),
         "IsAccurate": [True] * 95 + [False] * 5,
-        "TrackStatus": ["1"] * 90 + ["4"] * 5 + ["1"] * 5,
+        "TrackStatus": ["1"] * 85 + ["2"] * 5 + ["4"] * 5 + ["1"] * 5,
         "PitInTime": [pd.NaT] * 96 + [pd.Timestamp("2024-01-01 15:00:00")] * 4,
         "PitOutTime": [pd.NaT] * 96 + [pd.Timestamp("2024-01-01 15:00:25")] * 4,
         "Year": [2024] * n,
         "RoundNumber": [1] * n,
         "CircuitKey": ["Bahrain"] * n,
+        "TotalLaps": [57] * n,
+        "Position": np.tile(np.repeat([1, 2, 3, 4], 1), 25).flatten()[:n].astype(float),
+        "Time": base_times,
         "AirTemp": np.random.normal(30, 2, n),
         "TrackTemp": np.random.normal(45, 3, n),
         "Humidity": np.random.normal(40, 5, n),

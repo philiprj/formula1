@@ -1,4 +1,4 @@
-.PHONY: install sync data features train eval export test test-all lint format typecheck pre-commit clean help
+.PHONY: install sync data results features train train-all train-anomaly eval export test test-all lint format typecheck pre-commit clean help
 
 # ---------------------------------------------------------------------------
 # Environment
@@ -15,11 +15,23 @@ sync:             ## Sync venv with lockfile only (no extras)
 data:             ## Ingest raw lap data from FastF1
 	uv run python scripts/01_ingest.py
 
+results:          ## Ingest race results (retirements) from Jolpica API
+	uv run python scripts/01b_ingest_results.py
+
 features:         ## Build feature dataset from raw laps
 	uv run python scripts/02_build_features.py
 
-train:            ## Train all models
-	uv run python scripts/03_train.py
+train:            ## Train a single model (usage: make train MODEL=gbm)
+	uv run python scripts/03_train.py $(MODEL)
+
+train-all:        ## Train all degradation models + anomaly model
+	uv run python scripts/03_train.py linear
+	uv run python scripts/03_train.py bayesian --svi
+	uv run python scripts/03_train.py gbm
+	uv run python scripts/06_train_anomaly.py
+
+train-anomaly:    ## Train anomaly/retirement prediction model only
+	uv run python scripts/06_train_anomaly.py
 
 eval:             ## Evaluate and produce metrics
 	uv run python scripts/04_evaluate.py

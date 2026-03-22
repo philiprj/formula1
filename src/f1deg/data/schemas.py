@@ -26,8 +26,30 @@ PROCESSED_SCHEMA = DataFrameSchema(
         "fuel_mass_kg": Column(float, pa.Check.in_range(0.0, 115.0)),
         "stint_number": Column(int, pa.Check.ge(0)),
         "stint_lap": Column(int, pa.Check.ge(0)),
+        # Traffic/position features (optional — may be absent in older data)
+        "position": Column(float, pa.Check.in_range(1, 22), nullable=True, required=False),
+        "position_change": Column(float, nullable=True, required=False),
+        "gap_ahead_seconds": Column(float, pa.Check.ge(0), nullable=True, required=False),
+        "gap_behind_seconds": Column(float, pa.Check.ge(0), nullable=True, required=False),
+        "traffic_density": Column(int, pa.Check.ge(0), nullable=True, required=False),
+        # Stint context features
+        "race_progress": Column(float, pa.Check.in_range(0.0, 1.05), nullable=True, required=False),
+        "stint_fraction": Column(
+            float, pa.Check.in_range(0.0, 1.05), nullable=True, required=False
+        ),
+        "is_final_stint": Column(bool, nullable=True, required=False),
+        # Interaction features
+        "compound_x_track_temp": Column(float, nullable=True, required=False),
+        "tyre_life_x_track_temp": Column(float, nullable=True, required=False),
+        # Outlier / anomaly labels (present in full dataset)
+        "is_outlier": Column(bool, nullable=True, required=False),
+        "outlier_reason": Column(str, nullable=True, required=False),
+        "is_anomalous_lap": Column(bool, nullable=True, required=False),
+        "did_retire": Column(bool, nullable=True, required=False),
+        "retirement_lap": Column(float, nullable=True, required=False),
+        "laps_until_retirement": Column(float, nullable=True, required=False),
     },
-    # Weather columns are optional (may have gaps)
+    # Weather columns and other optional columns
     strict=False,
     coerce=True,
 )

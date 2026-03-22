@@ -35,6 +35,10 @@ weather_features:
   - WindDirection
   - Rainfall
 
+# Compound-aware outlier detection
+outlier_zscore_threshold: 2.5
+outlier_small_group_iqr: 2.0
+
 # Output columns in processed dataset
 output_columns:
   - race_id
@@ -56,3 +60,16 @@ output_columns:
   - wind_speed
   - wind_direction
   - rainfall
+  # Traffic / position features
+  - position
+  - position_change
+  - gap_ahead_seconds
+  - gap_behind_seconds
+  - traffic_density
+  # Stint context
+  - race_progress
+  - stint_fraction
+  - is_final_stint
+  # Interaction features
+  - compound_x_track_temp
+  - tyre_life_x_track_temp

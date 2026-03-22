@@ -494,6 +494,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastf1" },
     { name = "jax" },
+    { name = "lightgbm" },
     { name = "numpy" },
     { name = "numpyro" },
     { name = "pandas" },
@@ -541,6 +542,7 @@ requires-dist = [
     { name = "f1deg", extras = ["gbm", "deep", "viz"], marker = "extra == 'all'" },
     { name = "fastf1", specifier = ">=3.8" },
     { name = "jax", extras = ["cpu"], specifier = ">=0.4" },
+    { name = "lightgbm", specifier = ">=4.6.0" },
     { name = "lightgbm", marker = "extra == 'gbm'", specifier = ">=4.0" },
     { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.24" },

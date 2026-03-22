@@ -105,6 +105,28 @@ def compute_stint_info(df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def _compute_traffic_density(
+    df: pd.DataFrame,
+    threshold_seconds: float = 1.5,
+) -> pd.Series:
+    """Count drivers within +/- threshold of each driver's lap time per race-lap.
+
+    Returns a Series aligned with df's index.
+    """
+    density = pd.Series(0, index=df.index, dtype=int)
+
+    for _, group in df.groupby(["race_id", "lap_number"]):
+        times = group["lap_time_seconds"].values
+        indices = group.index
+        for _i, (idx, t) in enumerate(zip(indices, times, strict=False)):
+            if pd.isna(t):
+                continue
+            count = int(np.sum(np.abs(times - t) <= threshold_seconds)) - 1  # exclude self
+            density.loc[idx] = max(count, 0)
+
+    return density
+
+
 def build_features(df: pd.DataFrame, config: dict | None = None) -> pd.DataFrame:
     """Transform raw lap data into model-ready features.
 
@@ -183,6 +205,71 @@ def build_features(df: pd.DataFrame, config: dict | None = None) -> pd.DataFrame
     features["stint_number"] = stint_info["stint_number"]
     features["stint_lap"] = stint_info["stint_lap"]
 
+    # Preserve TrackStatus for downstream outlier flagging (yellow adjacency)
+    if "TrackStatus" in df.columns:
+        features["TrackStatus"] = df["TrackStatus"]
+
+    # --- Traffic / Position features ---
+    if "Position" in df.columns:
+        features["position"] = df["Position"]
+
+    # Gap data (from ingest gap computation)
+    if "gap_ahead_seconds" in df.columns:
+        features["gap_ahead_seconds"] = df["gap_ahead_seconds"]
+    if "gap_behind_seconds" in df.columns:
+        features["gap_behind_seconds"] = df["gap_behind_seconds"]
+
+    # Position change per driver per race
+    if (
+        "position" in features.columns
+        and "driver_id" in features.columns
+        and "race_id" in features.columns
+    ):
+        features["position_change"] = features.groupby(["race_id", "driver_id"])["position"].diff()
+
+    # Traffic density: count of drivers within +/- 1.5s on the same lap
+    if (
+        "lap_time_seconds" in features.columns
+        and "race_id" in features.columns
+        and "lap_number" in features.columns
+    ):
+        features["traffic_density"] = _compute_traffic_density(features, threshold_seconds=1.5)
+
+    # --- Stint context features ---
+    if "lap_number" in features.columns and "TotalLaps" in df.columns:
+        features["race_progress"] = features["lap_number"] / df["TotalLaps"].values
+
+    # Stint fraction: how far through the current stint
+    if (
+        "stint_lap" in features.columns
+        and "race_id" in features.columns
+        and "driver_id" in features.columns
+    ):
+        max_stint_lap = features.groupby(["race_id", "driver_id", "stint_number"])[
+            "stint_lap"
+        ].transform("max")
+        features["stint_fraction"] = features["stint_lap"] / max_stint_lap.replace(0, 1)
+
+    # Is final stint
+    if (
+        "stint_number" in features.columns
+        and "race_id" in features.columns
+        and "driver_id" in features.columns
+    ):
+        max_stint = features.groupby(["race_id", "driver_id"])["stint_number"].transform("max")
+        features["is_final_stint"] = features["stint_number"] == max_stint
+
+    # --- Interaction features ---
+    compound_ordinal_map = {"SOFT": 0, "MEDIUM": 1, "HARD": 2, "INTERMEDIATE": 3, "WET": 4}
+    if "compound" in features.columns:
+        compound_ord = features["compound"].map(compound_ordinal_map)
+        if "track_temp" in features.columns:
+            features["compound_x_track_temp"] = compound_ord * features["track_temp"]
+        if "tyre_life" in features.columns:
+            features["tyre_life_x_track_temp"] = features["tyre_life"] * features.get(
+                "track_temp", 0
+            )
+
     # Drop rows with missing critical values
     required_cols = ["lap_time_seconds", "tyre_life", "compound"]
     present = [c for c in required_cols if c in features.columns]
@@ -194,6 +281,16 @@ def build_features(df: pd.DataFrame, config: dict | None = None) -> pd.DataFrame
         features = features[features["compound"].isin(valid_compounds)]
     if len(features) < before:
         logger.info(f"Dropped {before - len(features)} rows with null/invalid values in {present}")
+
+    # Deduplicate: FastF1 sometimes returns duplicate lap entries
+    dedup_cols = ["race_id", "driver_id", "lap_number"]
+    if all(c in features.columns for c in dedup_cols):
+        before_dedup = len(features)
+        features = features.drop_duplicates(subset=dedup_cols, keep="first")
+        if len(features) < before_dedup:
+            logger.info(
+                f"Removed {before_dedup - len(features)} duplicate (race, driver, lap) rows"
+            )
 
     logger.info(f"Built features: {len(features)} laps, {len(features.columns)} columns")
     return features
