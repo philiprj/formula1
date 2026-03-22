@@ -2,6 +2,8 @@
 
 Data-driven tire degradation modeling for Formula 1, built entirely from public data (FastF1, 2022-2025 seasons, ~165k clean race laps).
 
+**[Live Demo](https://f1-tyre-degradation.streamlit.app/)** — interactive dashboard for exploring degradation curves, model predictions, and strategy scenarios.
+
 ## Roadmap
 
 | Project | Goal | Status |
