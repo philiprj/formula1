@@ -493,45 +493,35 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastf1" },
+    { name = "jax" },
     { name = "numpy" },
+    { name = "numpyro" },
     { name = "pandas" },
     { name = "pandera" },
+    { name = "plotly" },
     { name = "pyarrow" },
     { name = "pyyaml" },
     { name = "requests" },
     { name = "scikit-learn" },
+    { name = "streamlit" },
+    { name = "xgboost" },
 ]
 
 [package.optional-dependencies]
 all = [
-    { name = "jax" },
     { name = "lightgbm" },
     { name = "matplotlib" },
-    { name = "numpyro" },
-    { name = "plotly" },
     { name = "seaborn" },
-    { name = "streamlit" },
     { name = "torch" },
-    { name = "xgboost" },
-]
-bayesian = [
-    { name = "jax" },
-    { name = "numpyro" },
-]
-dashboard = [
-    { name = "plotly" },
-    { name = "streamlit" },
 ]
 deep = [
     { name = "torch" },
 ]
 gbm = [
     { name = "lightgbm" },
-    { name = "xgboost" },
 ]
 viz = [
     { name = "matplotlib" },
-    { name = "plotly" },
     { name = "seaborn" },
 ]
 
@@ -548,27 +538,26 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "f1deg", extras = ["bayesian", "gbm", "deep", "viz", "dashboard"], marker = "extra == 'all'" },
+    { name = "f1deg", extras = ["gbm", "deep", "viz"], marker = "extra == 'all'" },
     { name = "fastf1", specifier = ">=3.8" },
-    { name = "jax", extras = ["cpu"], marker = "extra == 'bayesian'", specifier = ">=0.4" },
+    { name = "jax", extras = ["cpu"], specifier = ">=0.4" },
     { name = "lightgbm", marker = "extra == 'gbm'", specifier = ">=4.0" },
     { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.8" },
     { name = "numpy", specifier = ">=1.24" },
-    { name = "numpyro", marker = "extra == 'bayesian'", specifier = ">=0.14" },
+    { name = "numpyro", specifier = ">=0.14" },
     { name = "pandas", specifier = ">=2.0" },
     { name = "pandera", specifier = ">=0.18" },
-    { name = "plotly", marker = "extra == 'dashboard'", specifier = ">=5.18" },
-    { name = "plotly", marker = "extra == 'viz'", specifier = ">=5.18" },
+    { name = "plotly", specifier = ">=5.18" },
     { name = "pyarrow", specifier = ">=14.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "requests", specifier = ">=2.31" },
     { name = "scikit-learn", specifier = ">=1.3" },
     { name = "seaborn", marker = "extra == 'viz'", specifier = ">=0.13" },
-    { name = "streamlit", marker = "extra == 'dashboard'", specifier = ">=1.32" },
+    { name = "streamlit", specifier = ">=1.32" },
     { name = "torch", marker = "extra == 'deep'", specifier = ">=2.1" },
-    { name = "xgboost", marker = "extra == 'gbm'", specifier = ">=2.0" },
+    { name = "xgboost", specifier = ">=2.0" },
 ]
-provides-extras = ["bayesian", "gbm", "deep", "viz", "dashboard", "all"]
+provides-extras = ["gbm", "deep", "viz", "all"]
 
 [package.metadata.requires-dev]
 dev = [

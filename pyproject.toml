@@ -16,15 +16,20 @@ dependencies = [
     "pyyaml>=6.0",
     "scikit-learn>=1.3",
     "pandera>=0.18",
+    # Dashboard runtime deps (needed for Streamlit Cloud deployment via uv sync)
+    "streamlit>=1.32",
+    "plotly>=5.18",
+    # Model runtime deps (linear uses scikit-learn above; bayesian + gbm below)
+    "numpyro>=0.14",
+    "jax[cpu]>=0.4",
+    "xgboost>=2.0",
 ]
 
 [project.optional-dependencies]
-bayesian = ["numpyro>=0.14", "jax[cpu]>=0.4"]
-gbm     = ["xgboost>=2.0", "lightgbm>=4.0"]
+gbm     = ["lightgbm>=4.0"]
 deep    = ["torch>=2.1"]
-viz       = ["matplotlib>=3.8", "plotly>=5.18", "seaborn>=0.13"]
-dashboard = ["streamlit>=1.32", "plotly>=5.18"]
-all = ["f1deg[bayesian,gbm,deep,viz,dashboard]"]
+viz       = ["matplotlib>=3.8", "seaborn>=0.13"]
+all = ["f1deg[gbm,deep,viz]"]
 
 [project.scripts]
 f1-ingest   = "f1deg.data.ingest:main"
