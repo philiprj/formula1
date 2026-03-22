@@ -1,0 +1,58 @@
+# Feature engineering configuration
+
+# Filters to apply (in order)
+filters:
+  - accurate        # IsAccurate == True
+  - track_status    # Remove SC, VSC, red flag laps
+  - pit_laps        # Remove pit in/out laps
+  - first_lap       # Remove lap 1
+  - outliers        # Remove laps > median + 3*IQR per race
+
+# Track status codes to exclude
+track_status_exclude:
+  - "4"   # Safety Car
+  - "5"   # Red Flag
+  - "6"   # Virtual Safety Car
+
+# Outlier detection
+outlier_iqr_multiplier: 3.0
+
+# Compound mapping
+compounds:
+  SOFT: 0
+  MEDIUM: 1
+  HARD: 2
+  INTERMEDIATE: 3
+  WET: 4
+
+# Weather features to include
+weather_features:
+  - AirTemp
+  - TrackTemp
+  - Humidity
+  - Pressure
+  - WindSpeed
+  - WindDirection
+  - Rainfall
+
+# Output columns in processed dataset
+output_columns:
+  - race_id
+  - circuit_id
+  - driver_id
+  - constructor_id
+  - lap_number
+  - lap_time_seconds
+  - tyre_life
+  - tyre_life_sq
+  - compound
+  - fuel_mass_kg
+  - stint_number
+  - stint_lap
+  - air_temp
+  - track_temp
+  - humidity
+  - pressure
+  - wind_speed
+  - wind_direction
+  - rainfall

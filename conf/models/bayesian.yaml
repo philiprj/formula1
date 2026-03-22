@@ -1,0 +1,60 @@
+# Tier 2: Bayesian hierarchical state-space model (NumPyro)
+model_type: bayesian
+
+# MCMC settings
+mcmc:
+  num_warmup: 1000
+  num_samples: 2000
+  num_chains: 4
+  target_accept_prob: 0.85
+
+# SVI settings (for fast iteration / CV)
+svi:
+  num_steps: 10000
+  learning_rate: 0.005
+  guide: "autoguide"
+
+# Prior settings — data-informed
+priors:
+  # Global pace — average lap time across all circuits
+  global_pace_mean: 90.0
+  global_pace_sd: 10.0
+
+  # Circuit offset — circuits range from ~71s (Austria) to ~111s (Spa)
+  # Non-centered parameterization: offset = raw * sd
+  circuit_offset_scale: 15.0
+
+  # Compound offset relative to circuit pace
+  # SOFT ~ -2s, MEDIUM ~ 0, HARD ~ +1s
+  compound_offset_mean: 0.0
+  compound_offset_sd: 3.0
+
+  # Degradation rate (s/lap) — LogNormal to enforce positivity
+  # exp(-3.0) ≈ 0.05 s/lap, exp(-3.0 ± 0.5) covers ~0.03-0.08
+  deg_rate_log_mean: -3.0
+  deg_rate_log_sd: 0.5
+
+  # Fuel effect — well-known physics: ~0.035 s/kg (±0.005)
+  # Tight prior because this is a physical constant
+  fuel_effect_mean: 0.035
+  fuel_effect_sd: 0.005
+
+  # Driver offset — hierarchical with learned scale
+  driver_offset_scale: 1.5
+
+  # Observation noise
+  sigma_obs_scale: 2.0
+
+  # Student-t degrees of freedom (robustness to outliers)
+  obs_df: 5.0
+
+# Hierarchical pooling
+hierarchical:
+  pool_compounds: true
+  pool_circuits: true
+  pool_drivers: true
+
+# Convergence diagnostics thresholds
+diagnostics:
+  max_rhat: 1.01
+  min_ess: 400

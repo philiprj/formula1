@@ -1,0 +1,115 @@
+seasons: [2022, 2023, 2024, 2025]
+session_type: "R"  # Race only (exclude sprints initially)
+
+# FastF1 caching — null uses default OS cache dir (~/.cache/fastf1 or ~/Library/Caches/fastf1)
+cache_dir: null
+
+# Data directory (relative to project root)
+data_dir: "data"
+
+# Fuel parameters (2022+ regulations)
+fuel:
+  start_mass_kg: 110.0
+  burn_rate_kg_per_lap: 1.5
+
+# Pit loss by circuit (seconds, approximate)
+pit_loss:
+  bahrain: 22.5
+  jeddah: 23.0
+  albert_park: 22.0
+  suzuka: 23.0
+  shanghai: 23.5
+  miami: 24.0
+  imola: 23.0
+  monaco: 24.0
+  montreal: 22.5
+  barcelona: 23.0
+  spielberg: 21.5
+  silverstone: 22.5
+  hungaroring: 23.5
+  spa: 22.0
+  zandvoort: 23.5
+  monza: 21.0
+  baku: 23.5
+  marina_bay: 24.0
+  cota: 23.0
+  mexico: 23.5
+  interlagos: 22.5
+  las_vegas: 22.0
+  lusail: 22.5
+  yas_marina: 23.0
+
+# Circuit GPS coordinates (for Open-Meteo weather fallback)
+circuits:
+  bahrain:
+    lat: 26.0325
+    lon: 50.5106
+  jeddah:
+    lat: 21.6319
+    lon: 39.1044
+  albert_park:
+    lat: -37.8497
+    lon: 144.9680
+  suzuka:
+    lat: 34.8431
+    lon: 136.5407
+  shanghai:
+    lat: 31.3389
+    lon: 121.2198
+  miami:
+    lat: 25.9581
+    lon: -80.2389
+  imola:
+    lat: 44.3439
+    lon: 11.7167
+  monaco:
+    lat: 43.7347
+    lon: 7.4206
+  montreal:
+    lat: 45.5000
+    lon: -73.5228
+  barcelona:
+    lat: 41.5700
+    lon: 2.2611
+  spielberg:
+    lat: 47.2197
+    lon: 14.7647
+  silverstone:
+    lat: 52.0786
+    lon: -1.0169
+  hungaroring:
+    lat: 47.5789
+    lon: 19.2486
+  spa:
+    lat: 50.4372
+    lon: 5.9714
+  zandvoort:
+    lat: 52.3888
+    lon: 4.5409
+  monza:
+    lat: 45.6156
+    lon: 9.2811
+  baku:
+    lat: 40.3725
+    lon: 49.8533
+  marina_bay:
+    lat: 1.2914
+    lon: 103.8640
+  cota:
+    lat: 30.1328
+    lon: -97.6411
+  mexico:
+    lat: 19.4042
+    lon: -99.0907
+  interlagos:
+    lat: -23.7014
+    lon: -46.6969
+  las_vegas:
+    lat: 36.1147
+    lon: -115.1728
+  lusail:
+    lat: 25.4900
+    lon: 51.4542
+  yas_marina:
+    lat: 24.4672
+    lon: 54.6031

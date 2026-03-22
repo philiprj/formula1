@@ -1,0 +1,43 @@
+# Tier 4: Sequence model (LSTM/GRU)
+model_type: sequence
+
+# Architecture
+architecture: lstm  # or "gru"
+hidden_size: 128
+num_layers: 2
+dropout: 0.2
+bidirectional: false
+
+# Embedding dimensions for categorical features
+embedding_dims:
+  compound: 4
+  circuit_id: 8
+  driver_id: 8
+  constructor_id: 4
+
+# Continuous input features
+continuous_features:
+  - tyre_life
+  - fuel_mass_kg
+  - track_temp
+  - air_temp
+  - humidity
+  - wind_speed
+  - rainfall
+
+# Training
+training:
+  batch_size: 64
+  epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  patience: 10  # early stopping
+  scheduler: cosine  # learning rate schedule
+
+# MC dropout for prediction intervals
+mc_dropout:
+  num_samples: 100
+  dropout_rate: 0.2
+
+# Sequence padding
+max_stint_length: 50

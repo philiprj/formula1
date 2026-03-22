@@ -1,0 +1,48 @@
+# Tier 3: Gradient boosted trees (XGBoost / LightGBM)
+model_type: gbm
+
+# Which implementation to use
+backend: xgboost  # or "lightgbm"
+
+# Features
+features:
+  - tyre_life
+  - tyre_life_sq
+  - fuel_mass_kg
+  - track_temp
+  - air_temp
+  - humidity
+  - wind_speed
+  - rainfall
+
+categorical_features:
+  - compound
+  - circuit_id
+  - driver_id
+  - constructor_id
+
+# XGBoost hyperparameters
+xgboost:
+  n_estimators: 500
+  max_depth: 6
+  learning_rate: 0.05
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 5
+  reg_alpha: 0.1
+  reg_lambda: 1.0
+  tree_method: hist
+
+# LightGBM hyperparameters
+lightgbm:
+  n_estimators: 500
+  max_depth: 6
+  learning_rate: 0.05
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_samples: 20
+  reg_alpha: 0.1
+  reg_lambda: 1.0
+
+# Quantile regression for prediction intervals
+quantiles: [0.025, 0.5, 0.975]

@@ -1,0 +1,22 @@
+# Tier 1: Ridge regression baseline
+model_type: linear
+
+# Ridge regularization strength
+alpha: 1.0
+
+# Features used
+features:
+  - tyre_life
+  - tyre_life_sq
+  - fuel_mass_kg
+  - track_temp
+  - air_temp
+  - rainfall
+
+# Categorical features (one-hot encoded)
+categorical_features:
+  - compound
+  - circuit_id
+
+# Prediction interval method: "residual" (assumes normal residuals)
+interval_method: residual
