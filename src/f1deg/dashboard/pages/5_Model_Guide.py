@@ -19,12 +19,11 @@ available = available_model_names()
 # Tabs — one per model tier
 # ---------------------------------------------------------------------------
 
-tab_linear, tab_bayesian, tab_gbm, tab_anomaly = st.tabs(
+tab_linear, tab_bayesian, tab_gbm = st.tabs(
     [
         f"{'✅' if 'linear' in available else '⬜'} {MODEL_LABELS['linear']}",
         f"{'✅' if 'bayesian' in available else '⬜'} {MODEL_LABELS['bayesian']}",
         f"{'✅' if 'gbm' in available else '⬜'} {MODEL_LABELS['gbm']}",
-        "Anomaly Prediction",
     ]
 )
 

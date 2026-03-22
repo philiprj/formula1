@@ -83,7 +83,7 @@ num_stints = st.sidebar.slider("Number of Stints", 1, 4, 2, key="strat_num_stint
 # Weather (collapsed)
 with st.sidebar.expander("Weather Conditions"):
     air_temp = st.slider("Air Temp (C)", 15, 45, 25, key="strat_air")
-    track_temp = st.slider("Track Temp (C)", 20, 60, 40, key="strat_track")
+    track_temp = st.slider("Track Temp (C)", 10, 60, 40, key="strat_track")
     humidity = st.slider("Humidity (%)", 10, 100, 50, key="strat_hum")
     wind_speed = st.slider("Wind Speed (m/s)", 0, 15, 2, key="strat_wind")
     rainfall = st.toggle("Wet Conditions", value=False, key="strat_rain")

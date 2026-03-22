@@ -75,23 +75,46 @@ class DegradationModel(ABC):
             conditions = {}
 
         rows = []
+        track_temp = conditions.get("track_temp", 40.0)
         for lap in range(1, n_laps + 1):
-            rows.append(
-                {
-                    "tyre_life": float(lap),
-                    "tyre_life_sq": float(lap**2),
-                    "compound": compound.upper(),
-                    "circuit_id": circuit,
-                    "driver_id": conditions.get("driver_id", "UNKNOWN"),
-                    "constructor_id": conditions.get("constructor_id", "UNKNOWN"),
-                    "fuel_mass_kg": max(0.0, start_fuel_kg - burn_rate * (lap - 1)),
-                    "air_temp": conditions.get("air_temp", 25.0),
-                    "track_temp": conditions.get("track_temp", 40.0),
-                    "humidity": conditions.get("humidity", 50.0),
-                    "wind_speed": conditions.get("wind_speed", 2.0),
-                    "rainfall": conditions.get("rainfall", False),
-                }
-            )
+            tyre_life = float(lap)
+            row = {
+                "tyre_life": tyre_life,
+                "tyre_life_sq": tyre_life**2,
+                "compound": compound.upper(),
+                "circuit_id": circuit,
+                "driver_id": conditions.get("driver_id", "UNKNOWN"),
+                "constructor_id": conditions.get("constructor_id", "UNKNOWN"),
+                "fuel_mass_kg": max(0.0, start_fuel_kg - burn_rate * (lap - 1)),
+                "air_temp": conditions.get("air_temp", 25.0),
+                "track_temp": track_temp,
+                "humidity": conditions.get("humidity", 50.0),
+                "wind_speed": conditions.get("wind_speed", 2.0),
+                "rainfall": conditions.get("rainfall", False),
+                # Traffic / position — use neutral defaults for simulation
+                "position": conditions.get("position", 10.0),
+                "position_change": conditions.get("position_change", 0.0),
+                "gap_ahead_seconds": conditions.get("gap_ahead_seconds", 2.0),
+                "gap_behind_seconds": conditions.get("gap_behind_seconds", 2.0),
+                "traffic_density": conditions.get("traffic_density", 0.5),
+                # Stint context
+                "race_progress": lap / n_laps,
+                "stint_fraction": lap / n_laps,
+                # Interaction features
+                "compound_x_track_temp": 0.0,  # filled below
+                "tyre_life_x_track_temp": tyre_life * track_temp,
+            }
+            # compound_x_track_temp: encode compound as ordinal for interaction
+            # Must match the mapping in f1deg.data.features
+            compound_ord = {
+                "SOFT": 0,
+                "MEDIUM": 1,
+                "HARD": 2,
+                "INTERMEDIATE": 3,
+                "WET": 4,
+            }.get(compound.upper(), 1)
+            row["compound_x_track_temp"] = compound_ord * track_temp
+            rows.append(row)
 
         stint_df = pd.DataFrame(rows)
         predicted = self.predict(stint_df)

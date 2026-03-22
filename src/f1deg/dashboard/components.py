@@ -111,7 +111,7 @@ def scenario_sidebar(*, key_prefix: str = "") -> dict:
     # Weather conditions (collapsed)
     with st.sidebar.expander("Weather Conditions"):
         air_temp = st.slider("Air Temp (C)", 15, 45, 25, key=f"{key_prefix}air")
-        track_temp = st.slider("Track Temp (C)", 20, 60, 40, key=f"{key_prefix}track")
+        track_temp = st.slider("Track Temp (C)", 10, 60, 40, key=f"{key_prefix}track")
         humidity = st.slider("Humidity (%)", 10, 100, 50, key=f"{key_prefix}hum")
         wind_speed = st.slider("Wind Speed (m/s)", 0, 15, 2, key=f"{key_prefix}wind")
         rainfall = st.toggle("Wet Conditions", value=False, key=f"{key_prefix}rain")
