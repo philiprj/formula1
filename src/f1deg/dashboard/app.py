@@ -58,5 +58,6 @@ st.markdown(
     "1. **Degradation Explorer** — Interactive degradation curves with animation\n"
     "2. **Strategy Simulator** — Full race strategy comparison\n"
     "3. **Diagnostics** — Model error analysis\n"
-    "4. **Data Explorer** — Browse the training dataset"
+    "4. **Data Explorer** — Browse the training dataset\n"
+    "5. **Model Guide** — How each model works and when to use it"
 )
