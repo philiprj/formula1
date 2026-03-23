@@ -186,6 +186,11 @@ class GBMDegradationModel(DegradationModel):
     def _prepare_xy(
         self, df: pd.DataFrame, fit_encoders: bool = False
     ) -> tuple[np.ndarray, np.ndarray | None]:
+        # Ensure all expected numeric features exist — fill missing with 0
+        for col in self.feature_cols:
+            if col not in df.columns:
+                df = df.copy()
+                df[col] = 0.0
         available_features = [c for c in self.feature_cols if c in df.columns]
         X_numeric = df[available_features].fillna(0).values.astype(float)
 
