@@ -67,7 +67,9 @@ if race_defaults:
     strat_summary = " / ".join(
         f"{s['compound']} ({s['laps']})" for s in race_defaults["strategy"]["stints"]
     )
-    st.sidebar.caption(f"2025 {gp_name} winner: {race_defaults['winner_id']} ({strat_summary})")
+    st.sidebar.caption(
+        f"2025 {gp_name} defaults from {race_defaults['winner_id']}: {strat_summary}"
+    )
 
 total_race_laps = st.sidebar.number_input(
     "Total Race Laps",
