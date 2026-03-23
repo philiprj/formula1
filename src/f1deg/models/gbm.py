@@ -186,28 +186,35 @@ class GBMDegradationModel(DegradationModel):
     def _prepare_xy(
         self, df: pd.DataFrame, fit_encoders: bool = False
     ) -> tuple[np.ndarray, np.ndarray | None]:
-        # Ensure all expected numeric features exist — fill missing with 0
+        # Build numeric features — use exactly self.feature_cols in order,
+        # filling any missing columns with 0 so the feature count always
+        # matches the trained model.
+        df_prep = df.copy()
         for col in self.feature_cols:
-            if col not in df.columns:
-                df = df.copy()
-                df[col] = 0.0
-        available_features = [c for c in self.feature_cols if c in df.columns]
-        X_numeric = df[available_features].fillna(0).values.astype(float)
+            if col not in df_prep.columns:
+                df_prep[col] = 0.0
+        X_numeric = df_prep[self.feature_cols].fillna(0).values.astype(float)
 
-        available_cats = [c for c in self.categorical_cols if c in df.columns]
+        # Encode categoricals — use exactly self.categorical_cols in order
         cat_arrays = []
-        for col in available_cats:
+        for col in self.categorical_cols:
+            vals = (
+                df_prep[col].fillna("UNKNOWN").astype(str)
+                if col in df_prep.columns
+                else pd.Series(["UNKNOWN"] * len(df_prep))
+            )
             if fit_encoders:
                 le = LabelEncoder()
-                encoded = le.fit_transform(df[col].fillna("UNKNOWN").astype(str))
+                encoded = le.fit_transform(vals)
                 self.label_encoders[col] = le
             else:
                 le = self.label_encoders.get(col)
                 if le is None:
-                    continue
-                vals = df[col].fillna("UNKNOWN").astype(str)
-                # Handle unseen categories
-                encoded = np.array([le.transform([v])[0] if v in le.classes_ else 0 for v in vals])
+                    encoded = np.zeros(len(vals), dtype=int)
+                else:
+                    encoded = np.array(
+                        [le.transform([v])[0] if v in le.classes_ else 0 for v in vals]
+                    )
             cat_arrays.append(encoded.reshape(-1, 1))
 
         X = np.hstack([X_numeric, *cat_arrays]) if cat_arrays else X_numeric
