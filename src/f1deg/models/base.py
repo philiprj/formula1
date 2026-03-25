@@ -96,6 +96,7 @@ class DegradationModel(ABC):
                 "circuit_id": circuit,
                 "driver_id": conditions.get("driver_id", "UNKNOWN"),
                 "constructor_id": conditions.get("constructor_id", "UNKNOWN"),
+                "season": conditions.get("season", 2025),
                 "fuel_mass_kg": max(0.0, start_fuel_kg - burn_rate * (lap - 1)),
                 "air_temp": conditions.get("air_temp", 25.0),
                 "track_temp": track_temp,

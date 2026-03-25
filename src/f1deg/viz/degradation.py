@@ -107,12 +107,14 @@ def plot_stint_prediction(
     color = COMPOUND_COLORS.get(compound.upper(), "#4477AA")
 
     ax.plot(laps, curve_df["predicted_lap_time"], color=color, linewidth=2, label="Predicted")
-    ax.fill_between(
+    ax.plot(laps, curve_df["upper_bound"], color=color, linewidth=0.8, linestyle=":", alpha=0.5)
+    ax.plot(
         laps,
         curve_df["lower_bound"],
-        curve_df["upper_bound"],
-        alpha=0.2,
         color=color,
+        linewidth=0.8,
+        linestyle=":",
+        alpha=0.5,
         label="95% PI",
     )
 
@@ -125,6 +127,11 @@ def plot_stint_prediction(
             zorder=5,
             label="Actual",
         )
+
+    # Clamp y-axis to prediction line so PI bounds don't stretch the view
+    pred = curve_df["predicted_lap_time"]
+    y_margin = (pred.max() - pred.min()) * 0.15 + 0.3
+    ax.set_ylim(pred.min() - y_margin, pred.max() + y_margin)
 
     ax.set_xlabel("Lap in Stint")
     ax.set_ylabel("Lap Time (s)")

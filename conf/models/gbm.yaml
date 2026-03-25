@@ -27,6 +27,8 @@ features:
   - n_corners
   - tire_stress
   - pit_loss_seconds
+  # Season / regulation era
+  - season
   # DRS effect
   - drs_likely
   # Rolling/lag features (computed in model _prepare_xy)
@@ -58,14 +60,14 @@ categorical_features:
 
 # XGBoost hyperparameters
 xgboost:
-  n_estimators: 573
+  n_estimators: 646
   max_depth: 5
-  learning_rate: 0.032739909
-  subsample: 0.67173673
-  colsample_bytree: 0.78837536
-  min_child_weight: 13
-  reg_alpha: 0.51044766
-  reg_lambda: 2.1664017
+  learning_rate: 0.025860044
+  subsample: 0.68562402
+  colsample_bytree: 0.60330403
+  min_child_weight: 15
+  reg_alpha: 0.12361923
+  reg_lambda: 1.8055
   tree_method: hist
 
 # LightGBM hyperparameters

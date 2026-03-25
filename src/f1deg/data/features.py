@@ -338,6 +338,10 @@ def build_features(df: pd.DataFrame, config: dict | None = None) -> pd.DataFrame
         features["race_id"] = (
             df["Year"].astype(str) + "_" + df["RoundNumber"].astype(str).str.zfill(2)
         )
+    # Season (year) as numeric feature — captures regulation era effects
+    if "Year" in df.columns:
+        features["season"] = df["Year"].astype(int)
+
     if "CircuitKey" in df.columns:
         features["circuit_id"] = df["CircuitKey"]
 

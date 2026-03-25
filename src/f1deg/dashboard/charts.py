@@ -57,17 +57,25 @@ def plot_degradation_curves(
         color = _compound_color(compound)
         laps = df["lap_in_stint"]
 
-        # Prediction interval band
+        # Prediction interval boundary lines (thin dashed)
         fig.add_trace(
             go.Scatter(
-                x=pd.concat([laps, laps[::-1]]),
-                y=pd.concat([df["upper_bound"], df["lower_bound"][::-1]]),
-                fill="toself",
-                fillcolor=_hex_to_rgba(color, 0.15),
-                line={"width": 0},
+                x=laps,
+                y=df["upper_bound"],
+                mode="lines",
+                line={"color": _hex_to_rgba(color, 0.4), "width": 1, "dash": "dot"},
                 showlegend=False,
                 hoverinfo="skip",
-                name=f"{compound} PI",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=laps,
+                y=df["lower_bound"],
+                mode="lines",
+                line={"color": _hex_to_rgba(color, 0.4), "width": 1, "dash": "dot"},
+                showlegend=False,
+                hoverinfo="skip",
             )
         )
 
@@ -83,9 +91,13 @@ def plot_degradation_curves(
             )
         )
 
+    # Clamp y-axis to prediction lines so PI bounds don't stretch the view
+    all_pred = pd.concat([df["predicted_lap_time"] for df in curves.values()])
+    y_margin = (all_pred.max() - all_pred.min()) * 0.15 + 0.3
     fig.update_layout(
         xaxis_title="Lap in Stint",
         yaxis_title="Predicted Lap Time (s)",
+        yaxis_range=[all_pred.min() - y_margin, all_pred.max() + y_margin],
     )
     return fig
 
@@ -262,14 +274,23 @@ def plot_model_overlay(
         color = ACCENT[i % len(ACCENT)]
         laps = df["lap_in_stint"]
 
-        # PI band
+        # PI boundary lines (thin dashed)
         fig.add_trace(
             go.Scatter(
-                x=pd.concat([laps, laps[::-1]]),
-                y=pd.concat([df["upper_bound"], df["lower_bound"][::-1]]),
-                fill="toself",
-                fillcolor=_hex_to_rgba(color, 0.12),
-                line={"width": 0},
+                x=laps,
+                y=df["upper_bound"],
+                mode="lines",
+                line={"color": _hex_to_rgba(color, 0.35), "width": 1, "dash": "dot"},
+                showlegend=False,
+                hoverinfo="skip",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=laps,
+                y=df["lower_bound"],
+                mode="lines",
+                line={"color": _hex_to_rgba(color, 0.35), "width": 1, "dash": "dot"},
                 showlegend=False,
                 hoverinfo="skip",
             )
@@ -287,9 +308,13 @@ def plot_model_overlay(
             )
         )
 
+    # Clamp y-axis to prediction lines so PI bounds don't stretch the view
+    all_pred = pd.concat([df["predicted_lap_time"] for df in model_curves.values()])
+    y_margin = (all_pred.max() - all_pred.min()) * 0.15 + 0.3
     fig.update_layout(
         xaxis_title="Lap in Stint",
         yaxis_title="Predicted Lap Time (s)",
+        yaxis_range=[all_pred.min() - y_margin, all_pred.max() + y_margin],
     )
     return fig
 
@@ -346,16 +371,23 @@ def plot_race_timeline(
         color = _compound_color(stint["compound"])
         laps = stint["laps"]
 
-        # PI band
-        laps_fwd = list(laps)
-        laps_rev = list(reversed(laps))
+        # PI boundary lines (thin dashed)
         fig.add_trace(
             go.Scatter(
-                x=laps_fwd + laps_rev,
-                y=list(stint["upper"]) + list(reversed(stint["lower"])),
-                fill="toself",
-                fillcolor=_hex_to_rgba(color, 0.15),
-                line={"width": 0},
+                x=laps,
+                y=stint["upper"],
+                mode="lines",
+                line={"color": _hex_to_rgba(color, 0.4), "width": 1, "dash": "dot"},
+                showlegend=False,
+                hoverinfo="skip",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=laps,
+                y=stint["lower"],
+                mode="lines",
+                line={"color": _hex_to_rgba(color, 0.4), "width": 1, "dash": "dot"},
                 showlegend=False,
                 hoverinfo="skip",
             )
@@ -383,10 +415,21 @@ def plot_race_timeline(
             annotation_font_color=TEXT_DIM,
         )
 
-    fig.update_layout(
-        xaxis_title="Race Lap",
-        yaxis_title="Lap Time (s)",
-    )
+    # Clamp y-axis to prediction lines so PI bounds don't stretch the view
+    all_times = [t for stint in stint_curves for t in stint["times"]]
+    if all_times:
+        y_min, y_max = min(all_times), max(all_times)
+        y_margin = (y_max - y_min) * 0.15 + 0.3
+        fig.update_layout(
+            xaxis_title="Race Lap",
+            yaxis_title="Lap Time (s)",
+            yaxis_range=[y_min - y_margin, y_max + y_margin],
+        )
+    else:
+        fig.update_layout(
+            xaxis_title="Race Lap",
+            yaxis_title="Lap Time (s)",
+        )
     return fig
 
 

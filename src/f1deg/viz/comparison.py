@@ -86,13 +86,13 @@ def plot_degradation_curves_comparison(
     for (name, curve), color in zip(sorted(model_curves.items()), colors, strict=False):
         laps = curve["lap_in_stint"]
         ax.plot(laps, curve["predicted_lap_time"], label=name, color=color, linewidth=2)
-        ax.fill_between(
-            laps,
-            curve["lower_bound"],
-            curve["upper_bound"],
-            alpha=0.1,
-            color=color,
-        )
+        ax.plot(laps, curve["upper_bound"], color=color, linewidth=0.8, linestyle=":", alpha=0.4)
+        ax.plot(laps, curve["lower_bound"], color=color, linewidth=0.8, linestyle=":", alpha=0.4)
+
+    # Clamp y-axis to prediction lines so PI bounds don't stretch the view
+    all_pred = np.concatenate([c["predicted_lap_time"].values for c in model_curves.values()])
+    y_margin = (all_pred.max() - all_pred.min()) * 0.15 + 0.3
+    ax.set_ylim(all_pred.min() - y_margin, all_pred.max() + y_margin)
 
     ax.set_xlabel("Lap in Stint")
     ax.set_ylabel("Predicted Lap Time (s)")

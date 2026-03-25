@@ -15,6 +15,7 @@ PROCESSED_SCHEMA = DataFrameSchema(
         "circuit_id": Column(str, nullable=False),
         "driver_id": Column(str, nullable=False),
         "constructor_id": Column(str, nullable=False),
+        "season": Column(int, pa.Check.in_range(2020, 2030), nullable=False),
         "lap_number": Column(int, pa.Check.gt(0)),
         "lap_time_seconds": Column(float, pa.Check.in_range(60.0, 200.0)),
         "tyre_life": Column(float, pa.Check.ge(0)),

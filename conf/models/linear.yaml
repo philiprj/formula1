@@ -25,6 +25,8 @@ features:
   - n_corners
   - tire_stress
   - pit_loss_seconds
+  # Season / regulation era
+  - season
   # DRS effect
   - drs_likely
   # Interaction features
