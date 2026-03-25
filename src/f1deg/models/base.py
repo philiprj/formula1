@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from f1deg.config import load_config
+
 
 class DegradationModel(ABC):
     """Base interface for all tire degradation models.
@@ -74,6 +76,15 @@ class DegradationModel(ABC):
         if conditions is None:
             conditions = {}
 
+        # Load circuit characteristics from config
+        config = load_config()
+        from f1deg.data.features import _CIRCUIT_NAME_TO_KEY
+
+        circuit_chars = config.get("circuit_characteristics", {})
+        pit_loss_map = config.get("pit_loss", {})
+        circuit_key = _CIRCUIT_NAME_TO_KEY.get(circuit, "")
+        chars = circuit_chars.get(circuit_key, {})
+
         rows = []
         track_temp = conditions.get("track_temp", 40.0)
         for lap in range(1, n_laps + 1):
@@ -100,9 +111,13 @@ class DegradationModel(ABC):
                 # Stint context
                 "race_progress": lap / n_laps,
                 "stint_fraction": lap / n_laps,
+                # Circuit characteristics
+                "track_length_km": chars.get("length_km", 5.0),
+                "n_corners": chars.get("corners", 15),
+                "tire_stress": chars.get("tire_stress", 3),
+                "pit_loss_seconds": pit_loss_map.get(circuit_key, 23.0),
                 # Interaction features
                 "compound_x_track_temp": 0.0,  # filled below
-                "tyre_life_x_track_temp": tyre_life * track_temp,
             }
             # compound_x_track_temp: encode compound as ordinal for interaction
             # Must match the mapping in f1deg.data.features
@@ -114,6 +129,26 @@ class DegradationModel(ABC):
                 "WET": 4,
             }.get(compound.upper(), 1)
             row["compound_x_track_temp"] = compound_ord * track_temp
+            row["tyre_life_x_compound"] = tyre_life * compound_ord
+            row["fuel_mass_x_track_temp"] = row["fuel_mass_kg"] * track_temp
+            row["humidity_x_rainfall"] = row["humidity"] * (1.0 if row["rainfall"] else 0.0)
+            # DRS
+            row["drs_likely"] = float(lap >= 3 and row["gap_ahead_seconds"] < 1.0)
+            # SC/restart features (default = no recent SC)
+            row["laps_since_sc_end"] = conditions.get("laps_since_sc_end", 5)
+            row["laps_since_red_flag"] = conditions.get("laps_since_red_flag", 5)
+            row["had_sc_this_stint"] = conditions.get("had_sc_this_stint", False)
+            # Track temperature delta (default = stable conditions)
+            row["track_temp_delta"] = conditions.get("track_temp_delta", 0.0)
+            # Weekend calibration features (default 0 = "no practice data")
+            row["circuit_baseline_pace"] = conditions.get("circuit_baseline_pace", 0.0)
+            row["driver_pace_vs_field"] = conditions.get("driver_pace_vs_field", 0.0)
+            row["fp_deg_rate_soft"] = conditions.get("fp_deg_rate_soft", 0.0)
+            row["fp_deg_rate_medium"] = conditions.get("fp_deg_rate_medium", 0.0)
+            row["fp_deg_rate_hard"] = conditions.get("fp_deg_rate_hard", 0.0)
+            row["weekend_track_temp"] = conditions.get("weekend_track_temp", 0.0)
+            row["quali_position"] = conditions.get("quali_position", 0.0)
+            row["expected_fp3_race_delta"] = conditions.get("expected_fp3_race_delta", 3.0)
             rows.append(row)
 
         stint_df = pd.DataFrame(rows)

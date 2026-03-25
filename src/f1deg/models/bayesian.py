@@ -122,6 +122,9 @@ class BayesianDegradationModel(DegradationModel):
                 "driver_offset_sd",
                 "driver_offset_raw",
                 "driver_offset",
+                "track_temp_effect",
+                "race_progress_effect",
+                "drs_effect",
                 "sigma_obs",
             ],
         )
@@ -164,6 +167,18 @@ class BayesianDegradationModel(DegradationModel):
             + fuel_effect * fuel_mass
             + driver_offsets[driver_idx]
         )
+
+        # Add covariate effects using posterior means
+        if "track_temp" in data and "track_temp_effect" in self.samples:
+            track_temp_eff = float(np.mean(self.samples["track_temp_effect"]))
+            predictions = predictions + track_temp_eff * np.asarray(data["track_temp"])
+        if "race_progress" in data and "race_progress_effect" in self.samples:
+            rp_eff = float(np.mean(self.samples["race_progress_effect"]))
+            predictions = predictions + rp_eff * np.asarray(data["race_progress"])
+        if "drs_likely" in data and "drs_effect" in self.samples:
+            drs_eff = float(np.mean(self.samples["drs_effect"]))
+            predictions = predictions + drs_eff * np.asarray(data["drs_likely"])
+
         return predictions
 
     def predict_interval(
@@ -198,6 +213,20 @@ class BayesianDegradationModel(DegradationModel):
         all_predictions = (
             gp + cir + base + deg * tyre_life[None, :] + fuel_eff * fuel_mass[None, :] + drv
         )
+
+        # Add covariate effects with full posterior uncertainty
+        if "track_temp" in data and "track_temp_effect" in self.samples:
+            tt_eff = np.asarray(self.samples["track_temp_effect"])[idx, None]  # (S, 1)
+            tt_vals = np.asarray(data["track_temp"])[None, :]  # (1, N)
+            all_predictions = all_predictions + tt_eff * tt_vals
+        if "race_progress" in data and "race_progress_effect" in self.samples:
+            rp_eff = np.asarray(self.samples["race_progress_effect"])[idx, None]
+            rp_vals = np.asarray(data["race_progress"])[None, :]
+            all_predictions = all_predictions + rp_eff * rp_vals
+        if "drs_likely" in data and "drs_effect" in self.samples:
+            drs_eff = np.asarray(self.samples["drs_effect"])[idx, None]
+            drs_vals = np.asarray(data["drs_likely"])[None, :]
+            all_predictions = all_predictions + drs_eff * drs_vals
 
         lower = np.percentile(all_predictions, 100 * alpha / 2, axis=0)
         upper = np.percentile(all_predictions, 100 * (1 - alpha / 2), axis=0)
@@ -237,19 +266,29 @@ class BayesianDegradationModel(DegradationModel):
         n_compounds,
         n_circuits,
         n_drivers,
+        track_temp=None,
+        race_progress=None,
+        drs_likely=None,
         y=None,
     ):
         """NumPyro model specification.
 
         Parameterization:
             y[t] = circuit_pace[c] + compound_offset[k] + deg_rate[k] * tyre_life
-                   + fuel_effect * fuel_mass + driver_offset[d] + eps
+                   + fuel_effect * fuel_mass + driver_offset[d]
+                   + track_temp_effect * track_temp
+                   + race_progress_effect * race_progress
+                   + drs_effect * drs_likely
+                   + eps
 
         circuit_pace absorbs the absolute lap time (~70-111s) per circuit.
         compound_offset is relative to circuit pace (SOFT faster, HARD slower).
         deg_rate is degradation in s/lap per compound.
         fuel_effect is constrained near physics (~0.035 s/kg).
         driver_offset is relative skill.
+        track_temp_effect captures grip changes with temperature.
+        race_progress_effect captures rubber buildup improving grip over the race.
+        drs_effect captures the DRS time advantage.
         """
         numpyro, _jax = _import_numpyro()
         import numpyro.distributions as dist
@@ -318,6 +357,38 @@ class BayesianDegradationModel(DegradationModel):
         )
         driver_offset = numpyro.deterministic("driver_offset", driver_offset_raw * driver_offset_sd)
 
+        # --- Covariate effects ---
+
+        # Track temperature effect: hotter track = more grip (faster laps, negative coeff)
+        # Centered at -0.02 s/°C — small but consistent effect
+        track_temp_effect = numpyro.sample(
+            "track_temp_effect",
+            dist.Normal(
+                priors.get("track_temp_effect_mean", -0.02),
+                priors.get("track_temp_effect_sd", 0.03),
+            ),
+        )
+
+        # Race progress effect: rubber buildup makes track faster (negative coeff)
+        # Typical effect: ~0.3-0.8s faster from start to end of race
+        race_progress_effect = numpyro.sample(
+            "race_progress_effect",
+            dist.Normal(
+                priors.get("race_progress_effect_mean", -0.5),
+                priors.get("race_progress_effect_sd", 0.5),
+            ),
+        )
+
+        # DRS effect: having DRS makes a lap faster (negative coeff)
+        # Typical DRS advantage: 0.3-0.6s per lap
+        drs_effect = numpyro.sample(
+            "drs_effect",
+            dist.Normal(
+                priors.get("drs_effect_mean", -0.4),
+                priors.get("drs_effect_sd", 0.3),
+            ),
+        )
+
         # Observation noise
         sigma_obs = numpyro.sample(
             "sigma_obs",
@@ -333,6 +404,14 @@ class BayesianDegradationModel(DegradationModel):
             + fuel_effect * fuel_mass
             + driver_offset[driver_idx]
         )
+
+        # Add covariate effects (covariates are z-scored in _encode_data)
+        if track_temp is not None:
+            mu = mu + track_temp_effect * track_temp
+        if race_progress is not None:
+            mu = mu + race_progress_effect * race_progress
+        if drs_likely is not None:
+            mu = mu + drs_effect * drs_likely
 
         obs_df = priors.get("obs_df", 5.0)
         numpyro.sample(
@@ -389,6 +468,26 @@ class BayesianDegradationModel(DegradationModel):
             "n_circuits": len(self.encoders.get("circuit_id", {"unknown": 0})),
             "n_drivers": len(self.encoders.get("driver_id", {"UNK": 0})),
         }
+
+        # Covariate features — z-score normalize to help MCMC sampling
+        if "track_temp" in df.columns:
+            vals = df["track_temp"].fillna(30.0).values.astype(float)
+            # Store stats for prediction-time normalization
+            if "track_temp_stats" not in self.encoders:
+                self.encoders["track_temp_stats"] = {
+                    "mean": float(np.mean(vals)),
+                    "std": float(np.std(vals)) or 1.0,
+                }
+            stats = self.encoders["track_temp_stats"]
+            data["track_temp"] = jnp.array((vals - stats["mean"]) / stats["std"], dtype=jnp.float32)
+
+        if "race_progress" in df.columns:
+            vals = df["race_progress"].fillna(0.5).values.astype(float)
+            data["race_progress"] = jnp.array(vals, dtype=jnp.float32)
+
+        if "drs_likely" in df.columns:
+            vals = df["drs_likely"].fillna(0.0).values.astype(float)
+            data["drs_likely"] = jnp.array(vals, dtype=jnp.float32)
 
         if "lap_time_seconds" in df.columns:
             data["y"] = jnp.array(df["lap_time_seconds"].values, dtype=jnp.float32)

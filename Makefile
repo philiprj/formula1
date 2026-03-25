@@ -1,4 +1,4 @@
-.PHONY: install sync data results features train train-all train-anomaly eval export test test-all lint format typecheck pre-commit clean help
+.PHONY: install sync data data-practice data-all results features train train-all train-anomaly eval tune export test test-all lint format typecheck pre-commit clean help
 
 # ---------------------------------------------------------------------------
 # Environment
@@ -14,6 +14,12 @@ sync:             ## Sync venv with lockfile only (no extras)
 # ---------------------------------------------------------------------------
 data:             ## Ingest raw lap data from FastF1
 	uv run python scripts/01_ingest.py
+
+data-practice:    ## Ingest practice + qualifying sessions from FastF1
+	uv run python scripts/01_ingest.py --sessions FP1,FP2,FP3,Q
+
+data-all:         ## Ingest all session types (practice + qualifying + race)
+	uv run python scripts/01_ingest.py --sessions all
 
 results:          ## Ingest race results (retirements) from Jolpica API
 	uv run python scripts/01b_ingest_results.py
@@ -33,8 +39,11 @@ train-all:        ## Train all degradation models + anomaly model
 train-anomaly:    ## Train anomaly/retirement prediction model only
 	uv run python scripts/06_train_anomaly.py
 
-eval:             ## Evaluate and produce metrics
-	uv run python scripts/04_evaluate.py
+eval:             ## Evaluate and produce metrics (usage: make eval MODEL=gbm)
+	uv run python scripts/04_evaluate.py $(MODEL)
+
+tune:             ## Run Optuna hyperparameter tuning (usage: make tune MODEL=gbm [BACKEND=lightgbm] [TRIALS=150] [APPLY=true])
+	uv run python scripts/05_tune.py $(MODEL) $(if $(BACKEND),--backend $(BACKEND)) $(if $(TRIALS),--n-trials $(TRIALS)) $(if $(FOLDS),--max-folds $(FOLDS)) $(if $(APPLY),--apply)
 
 export:           ## Export artefacts
 	uv run python scripts/05_export.py

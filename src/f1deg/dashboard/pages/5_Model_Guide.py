@@ -12,6 +12,10 @@ st.markdown(
     "An overview of the degradation models available in the dashboard, "
     "how they work, and when to use each one."
 )
+st.info(
+    "All models are trained on **dry compound laps only** (SOFT, MEDIUM, HARD). "
+    "Wet/intermediate tyre data is separated for future wet-specific modeling."
+)
 
 available = available_model_names()
 
@@ -19,11 +23,12 @@ available = available_model_names()
 # Tabs — one per model tier
 # ---------------------------------------------------------------------------
 
-tab_linear, tab_bayesian, tab_gbm = st.tabs(
+tab_linear, tab_bayesian, tab_gbm, tab_features = st.tabs(
     [
         f"{'✅' if 'linear' in available else '⬜'} {MODEL_LABELS['linear']}",
         f"{'✅' if 'bayesian' in available else '⬜'} {MODEL_LABELS['bayesian']}",
         f"{'✅' if 'gbm' in available else '⬜'} {MODEL_LABELS['gbm']}",
+        "Feature Reference",
     ]
 )
 
@@ -266,30 +271,39 @@ is sparse or noisy).
 | Property | Value |
 | --- | --- |
 | Backend | XGBoost (default) or LightGBM |
-| Trees | 500 |
-| Max depth | 6 |
-| Learning rate | 0.05 |
+| Trees | 573 (tuned) |
+| Max depth | 5 (tuned) |
+| Learning rate | 0.033 (tuned) |
 | Quantiles | 0.025, 0.5, 0.975 |
-| Typical MAE | ~0.84s |
+| Typical MAE | ~1.50s (LORO) |
+| Features | 36 numeric + 4 categorical |
 | Dependencies | xgboost or lightgbm |
 """
         )
 
         st.markdown("##### Features Used")
         st.code(
-            "Numeric:  tyre_life, tyre_life_sq, fuel_mass_kg,\n"
-            "          track_temp, air_temp, humidity,\n"
-            "          wind_speed, rainfall\n"
+            "Numeric:  tyre_life, fuel_mass_kg, track_temp,\n"
+            "          air_temp, humidity, wind_speed, rainfall\n"
+            "Circuit:  track_length_km, n_corners,\n"
+            "          tire_stress, pit_loss_seconds\n"
             "Traffic:  position, position_change,\n"
             "          gap_ahead_seconds, gap_behind_seconds,\n"
-            "          traffic_density\n"
+            "          traffic_density, drs_likely\n"
             "Stint:    race_progress, stint_fraction\n"
+            "Weekend:  circuit_baseline_pace,\n"
+            "          driver_pace_vs_field, fp_deg_rate_*,\n"
+            "          quali_position, weekend_track_temp\n"
+            "Rolling:  lap_time_delta, deg_rate_estimate,\n"
+            "          lap_time_rolling_std, tyre_life_cubed\n"
+            "SC/Flags: laps_since_sc_end, had_sc_this_stint\n"
             "Interact: compound_x_track_temp,\n"
-            "          tyre_life_x_track_temp\n"
+            "          tyre_life_x_compound\n"
             "Categorical: compound, circuit_id,\n"
             "             driver_id, constructor_id",
             language=None,
         )
+        st.caption("See the **Feature Reference** tab for details on each feature.")
 
     st.divider()
 
@@ -319,6 +333,316 @@ is sparse or noisy).
 
 
 # ---------------------------------------------------------------------------
+# Feature Reference
+# ---------------------------------------------------------------------------
+
+with tab_features:
+    st.header("Feature Reference")
+    st.markdown(
+        "A comprehensive guide to every feature used across the model tiers. "
+        "Features are grouped by category. The **Model** column shows which "
+        "tiers use each feature: **L** = Linear, **B** = Bayesian, **G** = GBM."
+    )
+
+    # --- Core tyre / fuel ---
+    st.subheader("Core: Tyre & Fuel")
+    st.markdown(
+        """
+| Feature | Description | Units | Model |
+| --- | --- | --- | --- |
+| `tyre_life` | Laps since the current set of tyres was fitted | laps | L B G |
+| `tyre_life_sq` | `tyre_life²` — captures accelerating degradation (quadratic term) | laps² | L B |
+| `tyre_life_cubed` | `tyre_life³` — captures the "tyre cliff" (computed at predict time in GBM) | laps³ | G |
+| `fuel_mass_kg` | Estimated fuel remaining, decreasing ~1.6 kg/lap from ~110 kg start | kg | L B G |
+| `compound` | Tyre compound: SOFT, MEDIUM, or HARD (label-encoded for GBM, one-hot for Linear) | categorical | L B G |
+"""
+    )
+
+    # --- Weather ---
+    st.subheader("Weather Conditions")
+    st.markdown(
+        """
+| Feature | Description | Units | Model |
+| --- | --- | --- | --- |
+| `track_temp` | Track surface temperature from FIA sensors | °C | L G |
+| `air_temp` | Ambient air temperature | °C | L G |
+| `humidity` | Relative humidity | % | G |
+| `wind_speed` | Wind speed at track level | m/s | G |
+| `rainfall` | Precipitation intensity (0 for most dry laps, but light rain is possible) | mm/h | L G |
+"""
+    )
+
+    # --- Circuit characteristics ---
+    st.subheader("Circuit Characteristics")
+    st.markdown(
+        """
+These numeric features encode the physical properties of each circuit, allowing
+the model to learn track-specific behaviour without relying solely on the
+`circuit_id` categorical. Added to replace `track_rubber_index`.
+
+| Feature | Description | Units | Model |
+| --- | --- | --- | --- |
+| `track_length_km` | Total lap distance | km | G |
+| `n_corners` | Number of corners per lap (from circuit data) | count | G |
+| `tire_stress` | Composite metric: `n_corners / track_length_km` — higher values mean more cornering load per km | corners/km | G |
+| `pit_loss_seconds` | Time lost entering and exiting the pit lane vs staying on track | seconds | G |
+| `circuit_id` | Categorical circuit identifier (label-encoded for GBM, one-hot for Linear) | categorical | L B G |
+
+**Feature importance insight:** `track_length_km` and `n_corners` are the
+2nd and 3rd most important features by gain (16.5% and 9.1% respectively),
+together contributing more predictive power than the `circuit_id` categorical alone.
+"""
+    )
+
+    # --- Position & traffic ---
+    st.subheader("Position & Traffic")
+    st.markdown(
+        """
+| Feature | Description | Units | Model |
+| --- | --- | --- | --- |
+| `position` | Race position at the start of this lap | int | G |
+| `position_change` | Positions gained/lost on the previous lap (+ve = gained) | int | G |
+| `gap_ahead_seconds` | Time gap to the car ahead | seconds | G |
+| `gap_behind_seconds` | Time gap to the car behind | seconds | G |
+| `traffic_density` | Number of cars within 1.5 seconds | count | G |
+| `drs_likely` | Whether DRS is likely available (gap < 1s to car ahead) | 0/1 | G |
+"""
+    )
+
+    # --- Stint context ---
+    st.subheader("Stint & Race Context")
+    st.markdown(
+        """
+| Feature | Description | Units | Model |
+| --- | --- | --- | --- |
+| `race_progress` | Fraction of total race distance completed (0 to 1) | ratio | G |
+| `stint_fraction` | Fraction of expected stint length completed | ratio | G |
+| `laps_since_sc_end` | Laps elapsed since the most recent safety car period ended | laps | G |
+| `laps_since_red_flag` | Laps elapsed since the most recent red flag restart | laps | G |
+| `had_sc_this_stint` | Whether a safety car occurred during the current stint | 0/1 | G |
+"""
+    )
+
+    # --- Weekend calibration ---
+    st.subheader("Weekend Calibration")
+    st.markdown(
+        """
+These features are derived from practice/qualifying sessions earlier in the
+weekend, giving the model track-specific and driver-specific context before the
+race starts.
+
+| Feature | Description | Units | Model |
+| --- | --- | --- | --- |
+| `circuit_baseline_pace` | Median clean lap time from FP sessions — sets the base pace for this circuit/weekend | seconds | G |
+| `driver_pace_vs_field` | Driver's FP pace relative to the field median (negative = faster) | seconds | G |
+| `fp_deg_rate_soft` | Degradation rate for SOFT compound estimated from FP long runs | s/lap | G |
+| `fp_deg_rate_medium` | Degradation rate for MEDIUM compound estimated from FP long runs | s/lap | G |
+| `fp_deg_rate_hard` | Degradation rate for HARD compound estimated from FP long runs | s/lap | G |
+| `weekend_track_temp` | Average track temperature across FP sessions | °C | G |
+| `quali_position` | Qualifying position (grid slot) — proxy for car/driver performance | int | G |
+| `expected_fp3_race_delta` | Expected pace difference between FP3 and race conditions | seconds | G |
+
+**Feature importance insight:** `circuit_baseline_pace` is the single most
+important feature at 27.2% of gain — it gives the model the absolute lap-time
+scale for each circuit/weekend.
+"""
+    )
+
+    # --- Interaction features ---
+    st.subheader("Interaction Features")
+    st.markdown(
+        """
+Pre-computed interactions that help models capture known physical relationships.
+
+| Feature | Description | Units | Model |
+| --- | --- | --- | --- |
+| `compound_x_track_temp` | compound_encoded * track_temp — captures compound-specific temperature sensitivity | - | G |
+| `tyre_life_x_compound` | tyre_life * compound_encoded — captures compound-specific degradation rate | - | G |
+"""
+    )
+
+    # --- Rolling / lag features ---
+    st.subheader("Rolling & Lag Features (GBM only)")
+    st.markdown(
+        """
+Computed at prediction time within each stint (5-lap rolling window). These
+give the model real-time information about how lap times are evolving.
+
+| Feature | Description | Units | Model |
+| --- | --- | --- | --- |
+| `lap_time_delta` | Current lap time minus the rolling median (5-lap window) | seconds | G |
+| `lap_time_rolling_std` | Rolling standard deviation of lap times (5-lap window) | seconds | G |
+| `deg_rate_estimate` | Lap-over-lap time increase (first difference) | seconds | G |
+"""
+    )
+
+    # --- Categorical identifiers ---
+    st.subheader("Categorical Identifiers")
+    st.markdown(
+        """
+| Feature | Description | Encoding | Model |
+| --- | --- | --- | --- |
+| `compound` | Tyre compound (SOFT / MEDIUM / HARD) | One-hot (L, B) or Label (G) | L B G |
+| `circuit_id` | Circuit identifier (e.g. `monza`, `silverstone`) | One-hot (L, B) or Label (G) | L B G |
+| `driver_id` | Driver identifier (e.g. `max_verstappen`) | Label (G) | B G |
+| `constructor_id` | Constructor/team identifier (e.g. `red_bull`) | Label (G) | G |
+
+**Feature importance insight:** `compound` and `driver_id` have very low
+importance in the GBM (< 0.5% each) because `fp_deg_rate_*` and
+`driver_pace_vs_field` capture the same information more directly.
+"""
+    )
+
+    # --- Model usage matrix ---
+    st.divider()
+    st.subheader("Feature Usage by Model")
+
+    feature_matrix = {
+        "Feature": [
+            "tyre_life",
+            "tyre_life_sq",
+            "tyre_life_cubed",
+            "fuel_mass_kg",
+            "track_temp",
+            "air_temp",
+            "humidity",
+            "wind_speed",
+            "rainfall",
+            "track_length_km",
+            "n_corners",
+            "tire_stress",
+            "pit_loss_seconds",
+            "position",
+            "gap_ahead_seconds",
+            "traffic_density",
+            "drs_likely",
+            "race_progress",
+            "stint_fraction",
+            "circuit_baseline_pace",
+            "fp_deg_rate_*",
+            "quali_position",
+            "compound_x_track_temp",
+            "lap_time_delta",
+            "deg_rate_estimate",
+            "laps_since_sc_end",
+            "had_sc_this_stint",
+            "compound",
+            "circuit_id",
+            "driver_id",
+            "constructor_id",
+        ],
+        "Linear": [
+            "Y",
+            "Y",
+            "",
+            "Y",
+            "Y",
+            "Y",
+            "",
+            "",
+            "Y",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "Y",
+            "Y",
+            "",
+            "",
+        ],
+        "Bayesian": [
+            "Y",
+            "Y",
+            "",
+            "Y",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "Y",
+            "Y",
+            "Y",
+            "",
+        ],
+        "GBM": [
+            "Y",
+            "",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+            "Y",
+        ],
+    }
+
+    import pandas as pd
+
+    matrix_df = pd.DataFrame(feature_matrix)
+    # Replace Y/empty with checkmarks
+    for col in ["Linear", "Bayesian", "GBM"]:
+        matrix_df[col] = matrix_df[col].apply(lambda x: "✅" if x == "Y" else "")
+
+    st.dataframe(matrix_df, use_container_width=True, hide_index=True, height=800)
+
+
+# ---------------------------------------------------------------------------
 # Comparison summary
 # ---------------------------------------------------------------------------
 
@@ -329,7 +653,7 @@ st.markdown(
     """
 | | Linear (Ridge) | Bayesian Hierarchical | Gradient Boosted Trees |
 | --- | --- | --- | --- |
-| **Typical MAE** | ~1.54s | ~1.33s | ~0.84s |
+| **Typical MAE** | ~1.54s | ~1.33s | ~1.50s (LORO) |
 | **Training time** | Seconds | Minutes (MCMC) | Seconds |
 | **Prediction speed** | Fast | Moderate | Fast |
 | **Interpretability** | High | High | Low |

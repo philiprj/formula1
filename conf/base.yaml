@@ -1,5 +1,5 @@
 seasons: [2022, 2023, 2024, 2025]
-session_type: "R"  # Race only (exclude sprints initially)
+session_types: ["R"]  # Default: Race only. Use ["FP1", "FP2", "FP3", "Q", "R"] for full weekend
 
 # FastF1 caching — null uses default OS cache dir (~/.cache/fastf1 or ~/Library/Caches/fastf1)
 cache_dir: null
@@ -38,6 +38,7 @@ pit_loss:
   las_vegas: 22.0
   lusail: 22.5
   yas_marina: 23.0
+  paul_ricard: 23.0
 
 # Circuit GPS coordinates (for Open-Meteo weather fallback)
 circuits:
@@ -113,3 +114,31 @@ circuits:
   yas_marina:
     lat: 24.4672
     lon: 54.6031
+
+# Circuit physical characteristics (for numeric features)
+circuit_characteristics:
+  bahrain:      { length_km: 5.412, corners: 15, tire_stress: 3 }
+  jeddah:       { length_km: 6.174, corners: 27, tire_stress: 2 }
+  albert_park:  { length_km: 5.278, corners: 14, tire_stress: 2 }
+  suzuka:       { length_km: 5.807, corners: 18, tire_stress: 4 }
+  shanghai:     { length_km: 5.451, corners: 16, tire_stress: 3 }
+  miami:        { length_km: 5.412, corners: 19, tire_stress: 3 }
+  imola:        { length_km: 4.909, corners: 19, tire_stress: 3 }
+  monaco:       { length_km: 3.337, corners: 19, tire_stress: 1 }
+  montreal:     { length_km: 4.361, corners: 14, tire_stress: 2 }
+  barcelona:    { length_km: 4.657, corners: 16, tire_stress: 4 }
+  spielberg:    { length_km: 4.318, corners: 10, tire_stress: 3 }
+  silverstone:  { length_km: 5.891, corners: 18, tire_stress: 5 }
+  hungaroring:  { length_km: 4.381, corners: 14, tire_stress: 3 }
+  spa:          { length_km: 7.004, corners: 19, tire_stress: 3 }
+  zandvoort:    { length_km: 4.259, corners: 14, tire_stress: 4 }
+  monza:        { length_km: 5.793, corners: 11, tire_stress: 2 }
+  baku:         { length_km: 6.003, corners: 20, tire_stress: 2 }
+  marina_bay:   { length_km: 4.940, corners: 19, tire_stress: 3 }
+  cota:         { length_km: 5.513, corners: 20, tire_stress: 4 }
+  mexico:       { length_km: 4.304, corners: 17, tire_stress: 3 }
+  interlagos:   { length_km: 4.309, corners: 15, tire_stress: 4 }
+  las_vegas:    { length_km: 6.201, corners: 17, tire_stress: 2 }
+  lusail:       { length_km: 5.419, corners: 16, tire_stress: 4 }
+  yas_marina:   { length_km: 5.281, corners: 16, tire_stress: 3 }
+  paul_ricard:  { length_km: 5.842, corners: 15, tire_stress: 3 }

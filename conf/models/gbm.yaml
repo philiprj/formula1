@@ -7,7 +7,6 @@ backend: xgboost  # or "lightgbm"
 # Features
 features:
   - tyre_life
-  - tyre_life_sq
   - fuel_mass_kg
   - track_temp
   - air_temp
@@ -23,10 +22,34 @@ features:
   # Stint context
   - race_progress
   - stint_fraction
+  # Circuit characteristics (numeric)
+  - track_length_km
+  - n_corners
+  - tire_stress
+  - pit_loss_seconds
+  # DRS effect
+  - drs_likely
+  # Rolling/lag features (computed in model _prepare_xy)
+  - lap_time_delta
+  - lap_time_rolling_std
+  - deg_rate_estimate
+  - tyre_life_cubed
   # Interaction features
   - compound_x_track_temp
-  - tyre_life_x_track_temp
-
+  - tyre_life_x_compound
+  # Weekend calibration features
+  - circuit_baseline_pace
+  - driver_pace_vs_field
+  - fp_deg_rate_soft
+  - fp_deg_rate_medium
+  - fp_deg_rate_hard
+  - weekend_track_temp
+  - quali_position
+  - expected_fp3_race_delta
+  # SC/restart features (computed from raw data before filtering)
+  - laps_since_sc_end
+  - laps_since_red_flag
+  - had_sc_this_stint
 categorical_features:
   - compound
   - circuit_id
@@ -35,19 +58,20 @@ categorical_features:
 
 # XGBoost hyperparameters
 xgboost:
-  n_estimators: 500
-  max_depth: 6
-  learning_rate: 0.05
-  subsample: 0.8
-  colsample_bytree: 0.8
-  min_child_weight: 5
-  reg_alpha: 0.1
-  reg_lambda: 1.0
+  n_estimators: 573
+  max_depth: 5
+  learning_rate: 0.032739909
+  subsample: 0.67173673
+  colsample_bytree: 0.78837536
+  min_child_weight: 13
+  reg_alpha: 0.51044766
+  reg_lambda: 2.1664017
   tree_method: hist
 
 # LightGBM hyperparameters
 lightgbm:
   n_estimators: 500
+  num_leaves: 63
   max_depth: 6
   learning_rate: 0.05
   subsample: 0.8
@@ -62,8 +86,10 @@ quantiles: [0.025, 0.5, 0.975]
 # Optuna hyperparameter tuning
 tuning:
   enabled: false
-  n_trials: 50
+  n_trials: 150
   max_folds: 10  # Subset of LORO folds for speed
+  use_pruner: true  # MedianPruner to terminate bad trials early
+  # XGBoost search space
   search_space:
     n_estimators: [300, 1000]
     max_depth: [4, 8]
@@ -71,5 +97,17 @@ tuning:
     subsample: [0.6, 0.9]
     colsample_bytree: [0.6, 0.95]
     min_child_weight: [3, 15]
+    reg_alpha: [0.01, 1.0]
+    reg_lambda: [0.1, 5.0]
+  # LightGBM-specific search space
+  lightgbm_search_space:
+    n_estimators: [300, 1000]
+    num_leaves: [20, 255]
+    max_depth: [4, 8]
+    learning_rate: [0.01, 0.1]
+    subsample: [0.6, 0.9]
+    colsample_bytree: [0.6, 0.95]
+    min_child_samples: [5, 50]
+    min_data_in_leaf: [5, 100]
     reg_alpha: [0.01, 1.0]
     reg_lambda: [0.1, 5.0]

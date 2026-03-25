@@ -24,6 +24,40 @@ continuous_features:
   - humidity
   - wind_speed
   - rainfall
+  # Traffic / position features
+  - position
+  - position_change
+  - gap_ahead_seconds
+  - gap_behind_seconds
+  - traffic_density
+  # Stint context
+  - race_progress
+  - stint_fraction
+  # Circuit characteristics (numeric)
+  - track_length_km
+  - n_corners
+  - tire_stress
+  - pit_loss_seconds
+  # DRS effect
+  - drs_likely
+  # Interaction features
+  - compound_x_track_temp
+  - tyre_life_x_compound
+  - fuel_mass_x_track_temp
+  - humidity_x_rainfall
+  # Weekend calibration features
+  - circuit_baseline_pace
+  - driver_pace_vs_field
+  - fp_deg_rate_soft
+  - fp_deg_rate_medium
+  - fp_deg_rate_hard
+  - weekend_track_temp
+  - quali_position
+  - expected_fp3_race_delta
+  # SC/restart features
+  - laps_since_sc_end
+  - laps_since_red_flag
+  - had_sc_this_stint
 
 # Training
 training:

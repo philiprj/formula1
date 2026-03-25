@@ -24,6 +24,7 @@ dependencies = [
     "jax[cpu]>=0.4",
     "xgboost>=2.0",
     "lightgbm>=4.6.0",
+    "optuna>=3.5",
 ]
 
 [project.optional-dependencies]
@@ -58,6 +59,7 @@ dev-dependencies = [
     "pre-commit>=3.7",
     "ipython>=8.0",
     "ipykernel>=7.0",
+    "nbconvert>=7.17.0",
 ]
 
 # ---------------------------------------------------------------------------

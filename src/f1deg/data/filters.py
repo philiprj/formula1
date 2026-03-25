@@ -164,16 +164,42 @@ def flag_outliers_compound_aware(
             result.loc[mask, "outlier_reason"] = "compound_zscore"
         return result
 
-    for _, group in result.groupby(group_cols):
+    # Pre-compute per-race condition flags for adaptive thresholds
+    race_is_wet = {}
+    race_has_sc = {}
+    if "race_id" in result.columns:
+        if "rainfall" in result.columns:
+            wet_pct = result.groupby("race_id")["rainfall"].apply(
+                lambda x: (x.fillna(0).astype(float) > 0).mean()
+            )
+            race_is_wet = (wet_pct > 0.1).to_dict()
+        if "had_sc_this_stint" in result.columns:
+            sc_pct = result.groupby("race_id")["had_sc_this_stint"].apply(
+                lambda x: x.astype(float).mean()
+            )
+            race_has_sc = (sc_pct > 0.2).to_dict()
+
+    for group_key, group in result.groupby(group_cols):
         times = group[time_col]
         if len(times) < 3:
             continue
+
+        # Adaptive threshold: widen for rain/SC races
+        effective_threshold = zscore_threshold
+        effective_iqr = iqr_multiplier
+        race_id = group_key[0] if isinstance(group_key, tuple) else group_key
+        if race_is_wet.get(race_id, False):
+            effective_threshold = max(zscore_threshold, 3.5)
+            effective_iqr = max(iqr_multiplier, 2.5)
+        elif race_has_sc.get(race_id, False):
+            effective_threshold = max(zscore_threshold, 3.0)
+            effective_iqr = max(iqr_multiplier, 2.25)
 
         if len(times) < 10:
             # Small group: use IQR
             q1, q3 = times.quantile(0.25), times.quantile(0.75)
             iqr = q3 - q1
-            upper = q3 + iqr_multiplier * iqr
+            upper = q3 + effective_iqr * iqr
             mask = times > upper
         else:
             # Large group: use z-score
@@ -182,7 +208,7 @@ def flag_outliers_compound_aware(
             if std == 0:
                 continue
             zscore = (times - mean) / std
-            mask = zscore > zscore_threshold
+            mask = zscore > effective_threshold
 
         flagged_idx = group.index[mask]
         result.loc[flagged_idx, "is_outlier"] = True

@@ -1,0 +1,88 @@
+{
+  "best_params": {
+    "n_estimators": 573,
+    "max_depth": 5,
+    "learning_rate": 0.032739909056691475,
+    "subsample": 0.6717367288024576,
+    "colsample_bytree": 0.7883753619498987,
+    "min_child_weight": 13,
+    "reg_alpha": 0.5104476601848597,
+    "reg_lambda": 2.166401736229618
+  },
+  "best_mae": 0.908326734676824,
+  "backend": "xgboost",
+  "n_trials": 30,
+  "n_pruned": 0,
+  "trials_summary": [
+    {
+      "number": 0,
+      "mae": 0.908326734676824,
+      "params": {
+        "n_estimators": 573,
+        "max_depth": 5,
+        "learning_rate": 0.032739909056691475,
+        "subsample": 0.6717367288024576,
+        "colsample_bytree": 0.7883753619498987,
+        "min_child_weight": 13,
+        "reg_alpha": 0.5104476601848597,
+        "reg_lambda": 2.166401736229618
+      }
+    },
+    {
+      "number": 15,
+      "mae": 0.9337963961294882,
+      "params": {
+        "n_estimators": 634,
+        "max_depth": 5,
+        "learning_rate": 0.036970777882470274,
+        "subsample": 0.7326815853106305,
+        "colsample_bytree": 0.6495682928667627,
+        "min_child_weight": 15,
+        "reg_alpha": 0.16405990374867796,
+        "reg_lambda": 3.074681802719344
+      }
+    },
+    {
+      "number": 24,
+      "mae": 0.9653349877028296,
+      "params": {
+        "n_estimators": 671,
+        "max_depth": 5,
+        "learning_rate": 0.035038471702093704,
+        "subsample": 0.7334072830445819,
+        "colsample_bytree": 0.7835570614520908,
+        "min_child_weight": 13,
+        "reg_alpha": 0.17302011600052908,
+        "reg_lambda": 2.1667132801915945
+      }
+    },
+    {
+      "number": 20,
+      "mae": 0.976424300518543,
+      "params": {
+        "n_estimators": 565,
+        "max_depth": 5,
+        "learning_rate": 0.03539049260553725,
+        "subsample": 0.8385912283096363,
+        "colsample_bytree": 0.7907204713653795,
+        "min_child_weight": 13,
+        "reg_alpha": 0.033916089740722265,
+        "reg_lambda": 2.223128944639325
+      }
+    },
+    {
+      "number": 17,
+      "mae": 0.993116454454522,
+      "params": {
+        "n_estimators": 607,
+        "max_depth": 7,
+        "learning_rate": 0.03875080818391603,
+        "subsample": 0.6058917915356522,
+        "colsample_bytree": 0.6509762627427024,
+        "min_child_weight": 7,
+        "reg_alpha": 0.15997983923021714,
+        "reg_lambda": 2.834167983853716
+      }
+    }
+  ]
+}

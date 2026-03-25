@@ -42,6 +42,21 @@ priors:
   # Driver offset — hierarchical with learned scale
   driver_offset_scale: 1.5
 
+  # Track temperature effect (s per z-scored °C)
+  # Hotter track → slightly faster laps (more grip from tyre temp)
+  track_temp_effect_mean: -0.02
+  track_temp_effect_sd: 0.03
+
+  # Race progress effect (s per unit of race_progress 0-1)
+  # Rubber buildup through the race makes track ~0.3-0.8s faster
+  race_progress_effect_mean: -0.5
+  race_progress_effect_sd: 0.5
+
+  # DRS effect (s when DRS available)
+  # Typical DRS advantage: 0.3-0.6s per lap
+  drs_effect_mean: -0.4
+  drs_effect_sd: 0.3
+
   # Observation noise
   sigma_obs_scale: 2.0
 

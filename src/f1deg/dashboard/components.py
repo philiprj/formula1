@@ -13,8 +13,8 @@ from f1deg.dashboard.state import (
     get_race_defaults,
 )
 
-COMPOUNDS = ["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"]
-DRY_COMPOUNDS = ["SOFT", "MEDIUM", "HARD"]
+COMPOUNDS = ["SOFT", "MEDIUM", "HARD"]
+DRY_COMPOUNDS = COMPOUNDS  # alias for backward compatibility
 
 
 def model_selector(*, multi: bool = False, key: str = "model_sel") -> str | list[str]:

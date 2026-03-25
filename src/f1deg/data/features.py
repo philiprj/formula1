@@ -15,11 +15,198 @@ from f1deg.config import load_config
 logger = logging.getLogger(__name__)
 
 
+_PRACTICE_SUFFIXES = {"_fp1", "_fp2", "_fp3", "_q", "_sprint"}
+
+# TrackStatus codes from FastF1
+_SC_CODES = {"4"}  # Safety Car
+_VSC_CODES = {"6", "7"}  # Virtual Safety Car (+ ending)
+_RED_CODES = {"5"}  # Red Flag
+_CAUTION_CODES = _SC_CODES | _VSC_CODES | _RED_CODES
+
+# Mapping from FastF1 event names to config circuit keys
+_CIRCUIT_NAME_TO_KEY = {
+    "Abu Dhabi Grand Prix": "yas_marina",
+    "Australian Grand Prix": "albert_park",
+    "Austrian Grand Prix": "spielberg",
+    "Azerbaijan Grand Prix": "baku",
+    "Bahrain Grand Prix": "bahrain",
+    "Belgian Grand Prix": "spa",
+    "British Grand Prix": "silverstone",
+    "Canadian Grand Prix": "montreal",
+    "Chinese Grand Prix": "shanghai",
+    "Dutch Grand Prix": "zandvoort",
+    "Emilia Romagna Grand Prix": "imola",
+    "French Grand Prix": "paul_ricard",
+    "Hungarian Grand Prix": "hungaroring",
+    "Italian Grand Prix": "monza",
+    "Japanese Grand Prix": "suzuka",
+    "Las Vegas Grand Prix": "las_vegas",
+    "Mexico City Grand Prix": "mexico",
+    "Miami Grand Prix": "miami",
+    "Monaco Grand Prix": "monaco",
+    "Qatar Grand Prix": "lusail",
+    "Saudi Arabian Grand Prix": "jeddah",
+    "Singapore Grand Prix": "marina_bay",
+    "Spanish Grand Prix": "barcelona",
+    "São Paulo Grand Prix": "interlagos",
+    "United States Grand Prix": "cota",
+}
+
+# Compound class mapping
+_COMPOUND_CLASS = {
+    "SOFT": "dry",
+    "MEDIUM": "dry",
+    "HARD": "dry",
+    "INTERMEDIATE": "inter",
+    "WET": "wet",
+}
+
+
+def compute_sc_rain_features(raw_df: pd.DataFrame) -> pd.DataFrame:
+    """Compute safety car and rain proximity features from RAW lap data.
+
+    Must be called BEFORE track_status filtering removes SC/VSC/Red laps,
+    since these features need the full TrackStatus sequence.
+
+    Returns a DataFrame with columns:
+        race_id, driver_id, lap_number,
+        laps_since_sc_end, laps_since_red_flag, had_sc_this_stint,
+        compound_class, is_wet_running, compound_class_changed_this_stint,
+        laps_since_compound_class_change, sub_race_id
+    """
+    # Determine column names (raw FastF1 vs processed)
+    driver_col = "Driver" if "Driver" in raw_df.columns else "driver_id"
+    lap_col = "LapNumber" if "LapNumber" in raw_df.columns else "lap_number"
+
+    # Build race_id if not present
+    df = raw_df.copy()
+    if "race_id" not in df.columns and "Year" in df.columns and "RoundNumber" in df.columns:
+        df["race_id"] = df["Year"].astype(str) + "_" + df["RoundNumber"].astype(str).str.zfill(2)
+    if "race_id" not in df.columns:
+        return pd.DataFrame()
+
+    # Normalize compound
+    compound_col = "Compound" if "Compound" in df.columns else "compound"
+    if compound_col in df.columns:
+        df["_compound_upper"] = df[compound_col].astype(str).str.upper()
+    else:
+        df["_compound_upper"] = "UNKNOWN"
+
+    results = []
+
+    for (race_id, driver_id), group in df.groupby(["race_id", driver_col]):
+        group = group.sort_values(lap_col)
+        laps = group[lap_col].values
+        statuses = (
+            group["TrackStatus"].astype(str).values
+            if "TrackStatus" in group.columns
+            else ["1"] * len(group)
+        )
+        compounds = group["_compound_upper"].values
+
+        # Track SC/VSC/Red flag state
+        last_sc_end_lap = -999
+        last_red_end_lap = -999
+        in_sc = False
+        in_red = False
+        sc_in_current_stint = False
+        sub_race = 1
+
+        # Track compound class changes
+        prev_compound_class = (
+            _COMPOUND_CLASS.get(compounds[0], "dry") if len(compounds) > 0 else "dry"
+        )
+        last_class_change_lap = -999
+
+        # Track stint boundaries (TyreLife resets)
+        tyre_life_col = "TyreLife" if "TyreLife" in group.columns else "tyre_life"
+        tyre_lives = group[tyre_life_col].values if tyre_life_col in group.columns else None
+
+        for i, (lap_num, status, compound) in enumerate(
+            zip(laps, statuses, compounds, strict=True)
+        ):
+            status_str = str(status) if pd.notna(status) else "1"
+
+            # Detect SC/VSC state transitions
+            is_sc_now = any(c in status_str for c in _SC_CODES | _VSC_CODES)
+            is_red_now = any(c in status_str for c in _RED_CODES)
+
+            if in_sc and not is_sc_now:
+                last_sc_end_lap = lap_num  # SC just ended
+            if in_red and not is_red_now:
+                last_red_end_lap = lap_num  # Red flag just ended
+                sub_race += 1
+
+            in_sc = is_sc_now
+            in_red = is_red_now
+
+            if is_sc_now or is_red_now:
+                sc_in_current_stint = True
+
+            # Detect stint boundaries (TyreLife reset)
+            if tyre_lives is not None and i > 0 and tyre_lives[i] < tyre_lives[i - 1]:
+                sc_in_current_stint = False  # Reset for new stint
+
+            # Red flag also resets stint
+            if is_red_now:
+                sc_in_current_stint = True  # Will be True for the red flag stint
+
+            # Compound class tracking
+            comp_class = _COMPOUND_CLASS.get(compound, "dry")
+            if comp_class != prev_compound_class:
+                last_class_change_lap = lap_num
+                prev_compound_class = comp_class
+
+            # Compute features
+            laps_since_sc = min(lap_num - last_sc_end_lap, 99) if last_sc_end_lap > 0 else 99
+            laps_since_red = min(lap_num - last_red_end_lap, 99) if last_red_end_lap > 0 else 99
+            laps_since_cc = (
+                min(lap_num - last_class_change_lap, 99) if last_class_change_lap > 0 else 99
+            )
+
+            results.append(
+                {
+                    "race_id": race_id,
+                    "driver_id": driver_id,
+                    "lap_number": int(lap_num),
+                    "laps_since_sc_end": min(laps_since_sc, 5),  # Cap at 5
+                    "laps_since_red_flag": min(laps_since_red, 5),
+                    "had_sc_this_stint": sc_in_current_stint,
+                    "compound_class": comp_class,
+                    "is_wet_running": float(comp_class != "dry"),
+                    "compound_class_changed_this_stint": float(last_class_change_lap > 0),
+                    "laps_since_compound_class_change": min(laps_since_cc, 10),
+                    "sub_race_id": sub_race,
+                }
+            )
+
+    if not results:
+        return pd.DataFrame()
+
+    result_df = pd.DataFrame(results)
+    # Normalize driver_id column name
+    if driver_col != "driver_id":
+        result_df = result_df.rename(columns={"driver_id": "driver_id"})
+
+    logger.info(
+        f"Computed SC/rain features: {len(result_df)} laps, "
+        f"{(result_df['laps_since_sc_end'] < 5).sum()} post-SC laps, "
+        f"{(result_df['is_wet_running'] > 0).sum()} wet laps"
+    )
+    return result_df
+
+
+def _is_race_file(path: Path) -> bool:
+    """Return True if the parquet file is a race session (not practice/qualifying)."""
+    stem = path.stem.lower()
+    return not any(stem.endswith(s) for s in _PRACTICE_SUFFIXES)
+
+
 def load_raw_laps(raw_dir: Path) -> pd.DataFrame:
-    """Load and concatenate all raw Parquet files."""
-    files = sorted(raw_dir.glob("*.parquet"))
+    """Load and concatenate raw race Parquet files (excluding practice/qualifying)."""
+    files = sorted(f for f in raw_dir.glob("*.parquet") if _is_race_file(f))
     if not files:
-        raise FileNotFoundError(f"No Parquet files found in {raw_dir}")
+        raise FileNotFoundError(f"No race Parquet files found in {raw_dir}")
 
     dfs = []
     for f in files:
@@ -153,6 +340,23 @@ def build_features(df: pd.DataFrame, config: dict | None = None) -> pd.DataFrame
         )
     if "CircuitKey" in df.columns:
         features["circuit_id"] = df["CircuitKey"]
+
+    # Circuit physical characteristics (numeric features)
+    circuit_chars = config.get("circuit_characteristics", {})
+    pit_loss = config.get("pit_loss", {})
+    if "circuit_id" in features.columns and circuit_chars:
+        circuit_keys = features["circuit_id"].map(_CIRCUIT_NAME_TO_KEY)
+        features["track_length_km"] = circuit_keys.map(
+            lambda k: circuit_chars.get(k, {}).get("length_km", np.nan)
+        )
+        features["n_corners"] = circuit_keys.map(
+            lambda k: circuit_chars.get(k, {}).get("corners", np.nan)
+        )
+        features["tire_stress"] = circuit_keys.map(
+            lambda k: circuit_chars.get(k, {}).get("tire_stress", np.nan)
+        )
+        features["pit_loss_seconds"] = circuit_keys.map(lambda k: pit_loss.get(k, np.nan))
+
     if "Driver" in df.columns:
         features["driver_id"] = df["Driver"]
     if "Team" in df.columns:
@@ -259,6 +463,20 @@ def build_features(df: pd.DataFrame, config: dict | None = None) -> pd.DataFrame
         max_stint = features.groupby(["race_id", "driver_id"])["stint_number"].transform("max")
         features["is_final_stint"] = features["stint_number"] == max_stint
 
+    # --- Track temperature delta (drying/wetting proxy) ---
+    if "track_temp" in features.columns and "race_id" in features.columns:
+        features["track_temp_delta"] = (
+            features.groupby("race_id")["track_temp"]
+            .transform(lambda x: x.rolling(3, min_periods=1).mean().diff())
+            .fillna(0.0)
+        )
+
+    # --- DRS effect feature ---
+    if "lap_number" in features.columns and "gap_ahead_seconds" in features.columns:
+        features["drs_likely"] = (
+            (features["lap_number"] >= 3) & (features["gap_ahead_seconds"] < 1.0)
+        ).astype(float)
+
     # --- Interaction features ---
     compound_ordinal_map = {"SOFT": 0, "MEDIUM": 1, "HARD": 2, "INTERMEDIATE": 3, "WET": 4}
     if "compound" in features.columns:
@@ -266,9 +484,13 @@ def build_features(df: pd.DataFrame, config: dict | None = None) -> pd.DataFrame
         if "track_temp" in features.columns:
             features["compound_x_track_temp"] = compound_ord * features["track_temp"]
         if "tyre_life" in features.columns:
-            features["tyre_life_x_track_temp"] = features["tyre_life"] * features.get(
-                "track_temp", 0
-            )
+            features["tyre_life_x_compound"] = features["tyre_life"] * compound_ord
+    if "fuel_mass_kg" in features.columns and "track_temp" in features.columns:
+        features["fuel_mass_x_track_temp"] = features["fuel_mass_kg"] * features["track_temp"]
+    if "humidity" in features.columns and "rainfall" in features.columns:
+        features["humidity_x_rainfall"] = features["humidity"].fillna(0) * features[
+            "rainfall"
+        ].fillna(0).astype(float)
 
     # Drop rows with missing critical values
     required_cols = ["lap_time_seconds", "tyre_life", "compound"]
