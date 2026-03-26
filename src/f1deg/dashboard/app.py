@@ -59,5 +59,6 @@ st.markdown(
     "2. **Strategy Simulator** — Full race strategy comparison\n"
     "3. **Diagnostics** — Model error analysis\n"
     "4. **Data Explorer** — Browse the training dataset\n"
-    "5. **Model Guide** — How each model works and when to use it"
+    "5. **Model Guide** — How each model works and when to use it\n"
+    "6. **Pit Window Optimizer** — Optimal pit timing with SC-adjusted windows"
 )

@@ -329,7 +329,8 @@ def build_features(df: pd.DataFrame, config: dict | None = None) -> pd.DataFrame
 
     fuel_config = config.get("fuel", {})
     start_mass = fuel_config.get("start_mass_kg", 110.0)
-    burn_rate = fuel_config.get("burn_rate_kg_per_lap", 1.5)
+    default_burn_rate = fuel_config.get("burn_rate_kg_per_lap", 1.5)
+    fuel_by_circuit = config.get("fuel_by_circuit", {})
 
     features = pd.DataFrame()
 
@@ -383,13 +384,22 @@ def build_features(df: pd.DataFrame, config: dict | None = None) -> pd.DataFrame
     if "Compound" in df.columns:
         features["compound"] = df["Compound"].str.upper()
 
-    # Fuel load
+    # Fuel load — use circuit-specific burn rates when available
     if "lap_number" in features.columns:
-        features["fuel_mass_kg"] = compute_fuel_mass(
-            features["lap_number"],
-            start_mass=start_mass,
-            burn_rate=burn_rate,
-        )
+        if "circuit_id" in features.columns and fuel_by_circuit:
+            circuit_keys = features["circuit_id"].map(_CIRCUIT_NAME_TO_KEY)
+            burn_rates = circuit_keys.map(
+                lambda k: fuel_by_circuit.get(k, default_burn_rate)
+            ).fillna(default_burn_rate)
+            features["fuel_mass_kg"] = np.maximum(
+                0.0, start_mass - burn_rates * (features["lap_number"] - 1)
+            )
+        else:
+            features["fuel_mass_kg"] = compute_fuel_mass(
+                features["lap_number"],
+                start_mass=start_mass,
+                burn_rate=default_burn_rate,
+            )
 
     # Weather features
     weather_map = {
@@ -474,6 +484,26 @@ def build_features(df: pd.DataFrame, config: dict | None = None) -> pd.DataFrame
             .transform(lambda x: x.rolling(3, min_periods=1).mean().diff())
             .fillna(0.0)
         )
+
+    # --- Gap evolution features (strategy-critical for undercut/overcut) ---
+    if (
+        "gap_ahead_seconds" in features.columns
+        and "driver_id" in features.columns
+        and "race_id" in features.columns
+    ):
+        # Lap-over-lap gap change: positive = gap growing, negative = closing in
+        features["gap_ahead_delta"] = features.groupby(["race_id", "driver_id"])[
+            "gap_ahead_seconds"
+        ].diff()
+
+    if (
+        "gap_behind_seconds" in features.columns
+        and "driver_id" in features.columns
+        and "race_id" in features.columns
+    ):
+        features["gap_behind_delta"] = features.groupby(["race_id", "driver_id"])[
+            "gap_behind_seconds"
+        ].diff()
 
     # --- DRS effect feature ---
     if "lap_number" in features.columns and "gap_ahead_seconds" in features.columns:

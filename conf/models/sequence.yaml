@@ -1,19 +1,22 @@
 # Tier 4: Sequence model (LSTM/GRU)
+# Smaller architecture optimised for ~3-5K stints
 model_type: sequence
 
-# Architecture
-architecture: lstm  # or "gru"
-hidden_size: 128
-num_layers: 2
-dropout: 0.2
-bidirectional: false
+# Architecture — shrunk from 2x128 to 1x64
+architecture: lstm
+hidden_size: 64
+num_layers: 1
+dropout: 0.3
 
-# Embedding dimensions for categorical features
+# Auxiliary degradation-rate head
+aux_deg_head: true
+aux_loss_weight: 0.3  # Weight of delta loss vs primary lap-time loss
+
+# Embedding dimensions (dropped constructor — too few stints per constructor)
 embedding_dims:
   compound: 4
-  circuit_id: 8
-  driver_id: 8
-  constructor_id: 4
+  circuit_id: 6
+  driver_id: 6
 
 # Continuous input features
 continuous_features:
@@ -62,16 +65,17 @@ continuous_features:
 # Training
 training:
   batch_size: 64
-  epochs: 100
-  learning_rate: 0.001
-  weight_decay: 0.0001
-  patience: 10  # early stopping
-  scheduler: cosine  # learning rate schedule
+  epochs: 150
+  learning_rate: 0.0005
+  weight_decay: 0.001
+  patience: 15
+  grad_clip: 1.0
+  scheduler: cosine
 
-# MC dropout for prediction intervals
+# MC dropout for prediction intervals — 50 samples for better calibration
 mc_dropout:
-  num_samples: 100
-  dropout_rate: 0.2
+  num_samples: 50
+  dropout_rate: 0.3
 
 # Sequence padding
 max_stint_length: 50

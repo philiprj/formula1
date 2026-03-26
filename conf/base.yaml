@@ -10,7 +10,39 @@ data_dir: "data"
 # Fuel parameters (2022+ regulations)
 fuel:
   start_mass_kg: 110.0
-  burn_rate_kg_per_lap: 1.5
+  burn_rate_kg_per_lap: 1.5  # Global default fallback
+
+# Circuit-specific fuel burn rates (kg/lap).
+# Varies by ~20-30% across circuits due to track length, elevation, throttle %.
+# Low-fuel circuits (short/low-throttle): ~1.2 kg/lap
+# High-fuel circuits (long/high-throttle): ~1.8 kg/lap
+# Sources: FIA technical analysis, telemetry-derived estimates.
+fuel_by_circuit:
+  bahrain: 1.55
+  jeddah: 1.65       # Long, high-speed
+  albert_park: 1.45
+  suzuka: 1.60       # Long, high-downforce
+  shanghai: 1.55
+  miami: 1.50
+  imola: 1.40        # Shorter circuit
+  monaco: 1.20       # Shortest, lowest fuel consumption
+  montreal: 1.35     # Short, stop-start
+  barcelona: 1.45
+  spielberg: 1.30    # Short, low corners
+  silverstone: 1.60  # Long, high-speed
+  hungaroring: 1.40  # Short, twisty, low speed
+  spa: 1.80          # Longest circuit, highest fuel consumption
+  zandvoort: 1.35    # Short circuit
+  monza: 1.70        # Long, high-throttle %, low downforce
+  baku: 1.60         # Long street circuit
+  marina_bay: 1.50   # Street circuit, moderate length
+  cota: 1.55
+  mexico: 1.35       # Short, altitude reduces power
+  interlagos: 1.35   # Short circuit, altitude
+  las_vegas: 1.65    # Long, high-speed
+  lusail: 1.55
+  yas_marina: 1.50
+  paul_ricard: 1.55
 
 # Pit loss by circuit (seconds, approximate)
 pit_loss:

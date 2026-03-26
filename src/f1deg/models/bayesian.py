@@ -228,6 +228,13 @@ class BayesianDegradationModel(DegradationModel):
             drs_vals = np.asarray(data["drs_likely"])[None, :]
             all_predictions = all_predictions + drs_eff * drs_vals
 
+        # Add observation noise for proper *prediction* intervals (not just parameter uncertainty)
+        if "sigma_obs" in self.samples:
+            sigma = np.asarray(self.samples["sigma_obs"])[idx, None]  # (S, 1)
+            rng = np.random.default_rng(42)
+            noise = rng.normal(0, sigma, size=all_predictions.shape)
+            all_predictions = all_predictions + noise
+
         lower = np.percentile(all_predictions, 100 * alpha / 2, axis=0)
         upper = np.percentile(all_predictions, 100 * (1 - alpha / 2), axis=0)
         return lower, upper

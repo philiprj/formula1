@@ -54,6 +54,55 @@ def filter_track_status(
     return result
 
 
+def flag_track_status(
+    df: pd.DataFrame,
+    sc_codes: list[str] | None = None,
+    vsc_codes: list[str] | None = None,
+    red_codes: list[str] | None = None,
+) -> pd.DataFrame:
+    """Flag SC/VSC/red flag laps instead of removing them.
+
+    Adds boolean columns: is_under_sc, is_under_vsc, is_under_red_flag.
+    This preserves SC laps in the training data so models can learn
+    SC-period behavior (critical for pit strategy decisions).
+
+    Laps under red flag are still filtered out (race is stopped).
+    """
+    if "TrackStatus" not in df.columns:
+        logger.warning("TrackStatus column not found, skipping track status flagging")
+        return df
+
+    if sc_codes is None:
+        sc_codes = ["4"]
+    if vsc_codes is None:
+        vsc_codes = ["6", "7"]
+    if red_codes is None:
+        red_codes = ["5"]
+
+    result = df.copy()
+
+    def _has_code(status, codes):
+        if pd.isna(status):
+            return False
+        return any(c in str(status) for c in codes)
+
+    result["is_under_sc"] = result["TrackStatus"].apply(lambda s: _has_code(s, sc_codes))
+    result["is_under_vsc"] = result["TrackStatus"].apply(lambda s: _has_code(s, vsc_codes))
+    result["is_under_red_flag"] = result["TrackStatus"].apply(lambda s: _has_code(s, red_codes))
+
+    # Still remove red flag laps (race is stopped, times meaningless)
+    before = len(result)
+    result = result[~result["is_under_red_flag"]].copy()
+
+    sc_count = result["is_under_sc"].sum()
+    vsc_count = result["is_under_vsc"].sum()
+    logger.debug(
+        f"flag_track_status: {before} -> {len(result)} laps "
+        f"(kept {sc_count} SC + {vsc_count} VSC laps, removed {before - len(result)} red flag laps)"
+    )
+    return result
+
+
 def filter_pit_laps(df: pd.DataFrame) -> pd.DataFrame:
     """Remove pit-in and pit-out laps (inflated times)."""
     before = len(df)
@@ -301,6 +350,7 @@ def flag_yellow_adjacent(
 FILTER_REGISTRY: dict[str, Callable[[pd.DataFrame], pd.DataFrame]] = {
     "accurate": filter_accurate,
     "track_status": filter_track_status,
+    "track_status_flag": flag_track_status,
     "pit_laps": filter_pit_laps,
     "first_lap": filter_first_lap,
     "outliers": filter_outliers,

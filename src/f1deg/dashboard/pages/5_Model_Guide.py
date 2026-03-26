@@ -144,7 +144,11 @@ The generative model is:
 ```
 y[t] = global_pace + circuit_offset[c] + compound_offset[k]
      + deg_rate[k] · tyre_life + fuel_effect · fuel_mass
-     + driver_offset[d] + ε
+     + driver_offset[d]
+     + track_temp_effect · track_temp
+     + race_progress_effect · race_progress
+     + drs_effect · drs_likely
+     + ε
 ```
 
 Each component has an informative prior based on F1 physics:
@@ -152,6 +156,9 @@ Each component has an informative prior based on F1 physics:
 - **Degradation rate** uses a LogNormal prior to enforce positivity
 - **Circuit/driver offsets** use non-centered parameterisations for efficient
   sampling
+- **Track temperature** effect captures grip changes (hotter = faster)
+- **Race progress** effect captures rubber buildup improving grip over the race
+- **DRS effect** captures the ~0.3-0.6s advantage when DRS is available
 
 The model uses **partial pooling** — individual circuit/driver estimates
 borrow strength from the group mean, which helps when data is sparse
@@ -177,6 +184,7 @@ genuinely uncertain.
 | Chains / Samples | 4 / 2000 |
 | Observation noise | Student-t (df=5) |
 | Partial pooling | Circuits, compounds, drivers |
+| Covariates | track_temp, race_progress, drs_likely |
 | Typical MAE | ~1.33s |
 | Dependencies | numpyro, jax |
 """
@@ -184,13 +192,16 @@ genuinely uncertain.
 
         st.markdown("##### Prior Choices")
         st.code(
-            "global_pace     ~ N(90, 10)\n"
-            "circuit_offset  ~ N(0, s_circuit)  [non-centered]\n"
-            "compound_offset ~ N(0, 3)\n"
-            "deg_rate        ~ LogNormal(-3, 0.5)  [~0.05 s/lap]\n"
-            "fuel_effect     ~ N(0.035, 0.005)\n"
-            "driver_offset   ~ N(0, s_driver)  [non-centered]\n"
-            "s_obs           ~ HalfNormal(2)",
+            "global_pace        ~ N(90, 10)\n"
+            "circuit_offset     ~ N(0, s_circuit)  [non-centered]\n"
+            "compound_offset    ~ N(0, 3)\n"
+            "deg_rate           ~ LogNormal(-3, 0.5)  [~0.05 s/lap]\n"
+            "fuel_effect        ~ N(0.035, 0.005)\n"
+            "driver_offset      ~ N(0, s_driver)  [non-centered]\n"
+            "track_temp_effect  ~ N(-0.02, 0.03)\n"
+            "race_progress_eff  ~ N(-0.5, 0.5)\n"
+            "drs_effect         ~ N(-0.4, 0.3)\n"
+            "s_obs              ~ HalfNormal(2)",
             language=None,
         )
 
@@ -207,6 +218,7 @@ genuinely uncertain.
 - Posterior intervals reflect genuine uncertainty
 - Student-t likelihood is robust to outliers
 - Interpretable decomposition of lap time components
+- Covariate effects for track temp, race progress, and DRS
 """
         )
     with col_con:
@@ -364,7 +376,7 @@ with tab_features:
         """
 | Feature | Description | Units | Model |
 | --- | --- | --- | --- |
-| `track_temp` | Track surface temperature from FIA sensors | °C | L G |
+| `track_temp` | Track surface temperature from FIA sensors | °C | L B G |
 | `air_temp` | Ambient air temperature | °C | L G |
 | `humidity` | Relative humidity | % | G |
 | `wind_speed` | Wind speed at track level | m/s | G |
@@ -405,7 +417,9 @@ together contributing more predictive power than the `circuit_id` categorical al
 | `gap_ahead_seconds` | Time gap to the car ahead | seconds | G |
 | `gap_behind_seconds` | Time gap to the car behind | seconds | G |
 | `traffic_density` | Number of cars within 1.5 seconds | count | G |
-| `drs_likely` | Whether DRS is likely available (gap < 1s to car ahead) | 0/1 | G |
+| `drs_likely` | Whether DRS is likely available (gap < 1s to car ahead) | 0/1 | B G |
+| `gap_ahead_delta` | Change in gap to car ahead vs previous lap | seconds | G |
+| `gap_behind_delta` | Change in gap to car behind vs previous lap | seconds | G |
 """
     )
 
@@ -415,11 +429,14 @@ together contributing more predictive power than the `circuit_id` categorical al
         """
 | Feature | Description | Units | Model |
 | --- | --- | --- | --- |
-| `race_progress` | Fraction of total race distance completed (0 to 1) | ratio | G |
+| `race_progress` | Fraction of total race distance completed (0 to 1) | ratio | B G |
 | `stint_fraction` | Fraction of expected stint length completed | ratio | G |
+| `is_final_stint` | Whether this is the driver's final stint of the race | 0/1 | G |
 | `laps_since_sc_end` | Laps elapsed since the most recent safety car period ended | laps | G |
 | `laps_since_red_flag` | Laps elapsed since the most recent red flag restart | laps | G |
 | `had_sc_this_stint` | Whether a safety car occurred during the current stint | 0/1 | G |
+| `is_under_sc` | Whether the lap is under safety car conditions | 0/1 | G |
+| `is_under_vsc` | Whether the lap is under virtual safety car conditions | 0/1 | G |
 """
     )
 
@@ -458,6 +475,9 @@ Pre-computed interactions that help models capture known physical relationships.
 | --- | --- | --- | --- |
 | `compound_x_track_temp` | compound_encoded * track_temp — captures compound-specific temperature sensitivity | - | G |
 | `tyre_life_x_compound` | tyre_life * compound_encoded — captures compound-specific degradation rate | - | G |
+| `tyre_life_x_track_temp` | tyre_life * track_temp — captures temperature-dependent degradation | - | G |
+| `fuel_mass_x_track_temp` | fuel_mass * track_temp — captures fuel/temperature interaction | - | G |
+| `humidity_x_rainfall` | humidity * rainfall — captures wet-condition severity | - | G |
 """
     )
 
@@ -514,14 +534,23 @@ importance in the GBM (< 0.5% each) because `fp_deg_rate_*` and
             "pit_loss_seconds",
             "position",
             "gap_ahead_seconds",
+            "gap_ahead_delta",
+            "gap_behind_delta",
             "traffic_density",
             "drs_likely",
             "race_progress",
             "stint_fraction",
+            "is_final_stint",
+            "is_under_sc",
+            "is_under_vsc",
             "circuit_baseline_pace",
             "fp_deg_rate_*",
             "quali_position",
             "compound_x_track_temp",
+            "tyre_life_x_compound",
+            "tyre_life_x_track_temp",
+            "fuel_mass_x_track_temp",
+            "humidity_x_rainfall",
             "lap_time_delta",
             "deg_rate_estimate",
             "laps_since_sc_end",
@@ -533,69 +562,87 @@ importance in the GBM (< 0.5% each) because `fp_deg_rate_*` and
         ],
         "Linear": [
             "Y",
-            "Y",
-            "",
-            "Y",
-            "Y",
-            "Y",
-            "",
-            "",
-            "Y",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
             "",
             "",
             "Y",
             "Y",
+            "Y",
             "",
             "",
+            "Y",  # core + weather
+            "",
+            "",
+            "",
+            "",  # circuit
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",  # position/traffic
+            "",
+            "",
+            "",
+            "",
+            "",  # stint/SC
+            "",
+            "",
+            "",  # weekend
+            "",
+            "",
+            "",
+            "",
+            "",  # interactions
+            "",
+            "",  # rolling
+            "",
+            "",  # SC flags
+            "Y",
+            "Y",
+            "",
+            "",  # categoricals
         ],
         "Bayesian": [
             "Y",
             "Y",
             "",
             "Y",
+            "Y",
+            "",
+            "",
+            "",
+            "",  # core + weather
+            "",
+            "",
+            "",
+            "",  # circuit
             "",
             "",
             "",
             "",
             "",
+            "Y",  # position/traffic (drs_likely)
+            "Y",
+            "",
+            "",
+            "",
+            "",  # stint (race_progress)
+            "",
+            "",
+            "",  # weekend
             "",
             "",
             "",
             "",
+            "",  # interactions
             "",
+            "",  # rolling
             "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
+            "",  # SC flags
             "Y",
             "Y",
             "Y",
-            "",
+            "",  # categoricals
         ],
         "GBM": [
             "Y",
@@ -606,29 +653,38 @@ importance in the GBM (< 0.5% each) because `fp_deg_rate_*` and
             "Y",
             "Y",
             "Y",
+            "Y",  # core + weather
+            "Y",
+            "Y",
+            "Y",
+            "Y",  # circuit
             "Y",
             "Y",
             "Y",
             "Y",
             "Y",
+            "Y",  # position/traffic
             "Y",
             "Y",
             "Y",
             "Y",
+            "Y",  # stint/SC
+            "Y",
+            "Y",
+            "Y",  # weekend
             "Y",
             "Y",
             "Y",
             "Y",
+            "Y",  # interactions
+            "Y",
+            "Y",  # rolling
+            "Y",
+            "Y",  # SC flags
             "Y",
             "Y",
             "Y",
-            "Y",
-            "Y",
-            "Y",
-            "Y",
-            "Y",
-            "Y",
-            "Y",
+            "Y",  # categoricals
         ],
     }
 

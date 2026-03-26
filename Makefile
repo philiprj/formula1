@@ -1,4 +1,4 @@
-.PHONY: install sync data data-practice data-all results features train train-all train-anomaly eval tune export test test-all lint format typecheck pre-commit clean help
+.PHONY: install sync data data-practice data-all results features train train-all train-anomaly eval evaluate eval-all compare backtest tune export test test-all lint format typecheck pre-commit clean help
 
 # ---------------------------------------------------------------------------
 # Environment
@@ -34,13 +34,28 @@ train-all:        ## Train all degradation models + anomaly model
 	uv run python scripts/03_train.py linear
 	uv run python scripts/03_train.py bayesian --svi
 	uv run python scripts/03_train.py gbm
+	uv run python scripts/03_train.py sequence
 	uv run python scripts/06_train_anomaly.py
 
 train-anomaly:    ## Train anomaly/retirement prediction model only
 	uv run python scripts/06_train_anomaly.py
 
-eval:             ## Evaluate and produce metrics (usage: make eval MODEL=gbm)
+eval:             ## Evaluate trained model on holdout races (usage: make eval MODEL=gbm)
 	uv run python scripts/04_evaluate.py $(MODEL)
+
+evaluate: eval    ## Alias for eval
+
+eval-all:         ## Evaluate all trained models
+	uv run python scripts/04_evaluate.py linear
+	uv run python scripts/04_evaluate.py bayesian
+	uv run python scripts/04_evaluate.py gbm
+	uv run python scripts/04_evaluate.py sequence
+
+compare:          ## Compare all trained models side-by-side with residual diagnostics
+	uv run python scripts/04b_compare_models.py --models linear bayesian gbm
+
+backtest:         ## Backtest pit window calculator against actual race pit stops (usage: make backtest [MODEL=gbm])
+	uv run python scripts/05_backtest_strategy.py $(or $(MODEL),gbm)
 
 tune:             ## Run Optuna hyperparameter tuning (usage: make tune MODEL=gbm [BACKEND=lightgbm] [TRIALS=150] [APPLY=true])
 	uv run python scripts/05_tune.py $(MODEL) $(if $(BACKEND),--backend $(BACKEND)) $(if $(TRIALS),--n-trials $(TRIALS)) $(if $(FOLDS),--max-folds $(FOLDS)) $(if $(APPLY),--apply)

@@ -1,12 +1,14 @@
 # Feature engineering configuration
 
 # Filters to apply (in order)
+# Use track_status_flag to keep SC/VSC laps as features (better for strategy modeling).
+# Use track_status to remove them entirely (original behavior).
 filters:
-  - accurate        # IsAccurate == True
-  - track_status    # Remove SC, VSC, red flag laps
-  - pit_laps        # Remove pit in/out laps
-  - first_lap       # Remove lap 1
-  - outliers        # Remove laps > median + 3*IQR per race
+  - accurate            # IsAccurate == True
+  - track_status_flag   # Flag SC/VSC laps (keep them); remove red flag laps only
+  - pit_laps            # Remove pit in/out laps
+  - first_lap           # Remove lap 1
+  - outliers            # Remove laps > median + 3*IQR per race
 
 # Track status codes to exclude
 track_status_exclude:
@@ -66,10 +68,16 @@ output_columns:
   - gap_ahead_seconds
   - gap_behind_seconds
   - traffic_density
+  # Gap evolution (strategy-critical for undercut/overcut)
+  - gap_ahead_delta
+  - gap_behind_delta
   # Stint context
   - race_progress
   - stint_fraction
   - is_final_stint
+  # Track status flags (SC/VSC kept as features for strategy modeling)
+  - is_under_sc
+  - is_under_vsc
   # Interaction features
   - compound_x_track_temp
   - tyre_life_x_track_temp
